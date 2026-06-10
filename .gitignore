@@ -3,3 +3,17 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
+
+# Pi agent runtime
+.pi/
+.agents/
+skills-lock.json
+
+# Playwright CLI logs
+.playwright-cli/
+
+# macOS
+.DS_Store
+
+# Test artifacts
+*.png
