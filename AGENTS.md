@@ -13,3 +13,9 @@ Uses default triage label vocabulary (needs-triage, needs-info, ready-for-agent,
 ### Domain docs
 
 Single-context layout — one `CONTEXT.md` and one `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+
+## 工具偏好
+
+- 包管理：uv (Python)
+- Git：提交信息遵循 Conventional Commits（`feat:`, `fix:`, `chore:`, `refactor:`）
