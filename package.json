@@ -1,0 +1,15 @@
+{
+  "name": "pi-chat",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "dev:server": "pnpm --filter @pi-chat/server dev",
+    "dev:web": "pnpm --filter @pi-chat/web dev",
+    "check": "pnpm -r run check"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
