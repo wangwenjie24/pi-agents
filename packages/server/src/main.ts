@@ -23,7 +23,7 @@ export async function startServer(options: ServerOptions) {
 
   wss.on("connection", (ws) => {
     const sessionId = randomUUID();
-    let agentSession: any = null;
+    let sessionPromise: Promise<any> | null = null;
 
     // 连接建立，发送 connected
     send(ws, { type: "connected", sessionId });
@@ -38,12 +38,14 @@ export async function startServer(options: ServerOptions) {
 
       switch (msg.type) {
         case "prompt":
-          if (!options.noSdk) {
+          if (!options.noSdk && sessionPromise) {
+            const agentSession = await sessionPromise;
             await handlePrompt(ws, agentSession, msg.text);
           }
           break;
         case "abort":
-          if (agentSession) {
+          if (sessionPromise) {
+            const agentSession = await sessionPromise;
             await agentSession.abort();
           }
           break;
@@ -54,16 +56,15 @@ export async function startServer(options: ServerOptions) {
     });
 
     ws.on("close", async () => {
-      if (agentSession) {
+      if (sessionPromise) {
+        const agentSession = await sessionPromise;
         agentSession.dispose();
       }
     });
 
     // 在非测试模式下，连接时创建 Agent Session
     if (!options.noSdk) {
-      createAndBindSession(ws, sessionId).then((session) => {
-        agentSession = session;
-      });
+      sessionPromise = createAndBindSession(ws, sessionId);
     }
   });
 
@@ -128,4 +129,17 @@ async function handlePrompt(
   } catch (err: any) {
     send(ws, { type: "chat_error", error: err.message ?? String(err) });
   }
+}
+
+// ── 默认启动入口（仅直接执行时运行） ──
+// 使用 import.meta.url 判断是否为入口文件
+const IS_MAIN =
+  process.argv[1]?.includes("main.ts") ||
+  process.argv[1]?.includes("main.js");
+
+if (IS_MAIN) {
+  const PORT = parseInt(process.env.PORT ?? "8080", 10);
+  startServer({ port: PORT }).then(() => {
+    console.log(`Pi Chat server listening on port ${PORT}`);
+  });
 }
