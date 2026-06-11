@@ -24,14 +24,14 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     form.apiKey !== apiKey;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20">
+      <div className="w-full max-w-md rounded-xl bg-background border border-border shadow-sm">
         {/* 标题栏 */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-100">模型配置</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">模型配置</h2>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M1 1l12 12M13 1L1 13" />
@@ -69,20 +69,20 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* 底部操作栏 */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-zinc-800">
-          <span className="text-xs text-zinc-500">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <span className="text-xs text-muted-foreground">
             {saved ? "✓ 已保存" : hasChanges ? "有未保存的更改" : "配置已同步"}
           </span>
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="rounded-lg px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+              className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               取消
             </button>
             <button
               onClick={handleSave}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+              className="rounded-lg bg-primary text-primary-foreground px-4 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity"
             >
               保存
             </button>
@@ -108,13 +108,13 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm text-zinc-400 mb-1">{label}</label>
+      <label className="block text-sm text-muted-foreground mb-1">{label}</label>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full rounded-lg bg-muted border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring"
       />
     </div>
   );

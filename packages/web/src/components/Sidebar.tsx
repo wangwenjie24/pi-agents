@@ -45,13 +45,13 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 flex flex-col bg-zinc-900 border-r border-zinc-800 h-full">
+    <aside className="w-[300px] flex flex-col bg-sidebar border-r border-sidebar-border h-full">
       {/* 顶栏 */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-300">会话</h2>
+      <div className="flex items-center justify-between px-3 py-3 border-b border-sidebar-border">
+        <h2 className="text-sm font-semibold text-foreground">会话</h2>
         <button
           onClick={handleNewSession}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title="新建会话"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -117,8 +117,8 @@ function SessionItem({
     <div
       className={`group relative flex items-center px-3 py-2 mx-1 rounded-lg cursor-pointer transition-colors ${
         isActive
-          ? "bg-zinc-800 text-zinc-100"
-          : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+          ? "bg-accent text-foreground"
+          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
       }`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -138,7 +138,7 @@ function SessionItem({
             }
           }}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 bg-zinc-700 rounded px-2 py-0.5 text-sm text-zinc-100 outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 bg-background rounded px-2 py-0.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
         />
       ) : (
         <>
@@ -151,7 +151,7 @@ function SessionItem({
                   setEditing(true);
                   setEditName(session.name);
                 }}
-                className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                 title="重命名"
               >
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -163,7 +163,7 @@ function SessionItem({
                   e.stopPropagation();
                   onDelete();
                 }}
-                className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-700 transition-colors"
+                className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-accent transition-colors"
                 title="删除"
               >
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">

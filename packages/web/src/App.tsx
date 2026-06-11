@@ -1,157 +1,40 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { useChatStore } from "./chat-store.js";
 import { useConfigStore } from "./config-store.js";
 import { ChatRuntimeProvider } from "./ChatRuntimeProvider.js";
 import { Sidebar } from "./components/Sidebar.js";
-import { SettingsPanel } from "./components/SettingsPanel.js";
-import { ConnectionStatusBar } from "./components/ConnectionStatusBar.js";
+import { WelcomePage } from "./components/WelcomePage.js";
+import { MessageList } from "./components/MessageList.js";
+import { ChatInput } from "./components/ChatInput.js";
 
 function ChatInner() {
   const connected = useChatStore((s) => s.connected);
   const isRunning = useChatStore((s) => s.isRunning);
   const messages = useChatStore((s) => s.messages);
-  const activeSessionId = useChatStore((s) => s.activeSessionId);
-  const provider = useConfigStore((s) => s.provider);
-  const model = useConfigStore((s) => s.model);
+  const sendPrompt = useChatStore((s) => s.sendPrompt);
   const sendAbort = useChatStore((s) => s.sendAbort);
-  const [showSettings, setShowSettings] = useState(false);
 
-  // 显示当前模型信息
-  const modelInfo = provider && model ? `${provider}/${model}` : "";
+  const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-        <h1 className="text-lg font-semibold">
-          Pi Chat
-          {activeSessionId && (
-            <span className="ml-2 text-xs font-normal text-zinc-500">
-              {activeSessionId.slice(0, 8)}…
-            </span>
-          )}
-        </h1>
-        <div className="flex items-center gap-3">
-          {modelInfo && (
-            <span className="text-xs text-zinc-500">{modelInfo}</span>
-          )}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-            title="模型配置"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="8" cy="8" r="2.5" />
-              <path d="M13.3 10a1.2 1.2 0 00.2 1.3l.1.1a1.45 1.45 0 11-2.05 2.05l-.1-.1a1.2 1.2 0 00-1.3-.2 1.2 1.2 0 00-.73 1.1v.3a1.45 1.45 0 11-2.9 0v-.15a1.2 1.2 0 00-.79-1.1 1.2 1.2 0 00-1.3.2l-.1.1a1.45 1.45 0 11-2.05-2.05l.1-.1a1.2 1.2 0 00.2-1.3 1.2 1.2 0 00-1.1-.73h-.3a1.45 1.45 0 110-2.9h.15a1.2 1.2 0 001.1-.79 1.2 1.2 0 00-.2-1.3l-.1-.1A1.45 1.45 0 114.55 2.6l.1.1a1.2 1.2 0 001.3.2h.06a1.2 1.2 0 00.73-1.1v-.3a1.45 1.45 0 012.9 0v.15a1.2 1.2 0 00.73 1.1 1.2 1.2 0 001.3-.2l.1-.1a1.45 1.45 0 112.05 2.05l-.1.1a1.2 1.2 0 00-.2 1.3v.06a1.2 1.2 0 001.1.73h.3a1.45 1.45 0 010 2.9h-.15a1.2 1.2 0 00-1.1.73z" />
-            </svg>
-          </button>
-          <ConnectionStatusBar />
-        </div>
-      </div>
+    <div className="flex flex-col h-full bg-background text-foreground">
+      {hasMessages ? (
+        <>
+          {/* 消息列表 */}
+          <MessageList messages={messages} isRunning={isRunning} />
 
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : "bg-zinc-800 text-zinc-100"
-              }`}
-            >
-              {/* 工具调用展示 */}
-              {msg.toolCalls && msg.toolCalls.length > 0 && (
-                <div className="mb-2 space-y-1.5">
-                  {msg.toolCalls.map((tc, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-700/50 text-xs"
-                    >
-                      <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        tc.status === "running"
-                          ? "bg-amber-400 animate-pulse"
-                          : "bg-emerald-400"
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-zinc-300">{tc.toolName}</span>
-                        {tc.status === "running" && (
-                          <span className="ml-1.5 text-zinc-500">执行中…</span>
-                        )}
-                        {tc.output && (
-                          <p className="mt-0.5 text-zinc-500 truncate">{tc.output}</p>
-                        )}
-                        {tc.result && (
-                          <p className="mt-0.5 text-zinc-400 line-clamp-2">{tc.result}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="whitespace-pre-wrap">{msg.content || "…"}</p>
-              {/* 中断标记 */}
-              {msg.status === "aborted" && (
-                <span className="inline-block mt-1 text-xs text-amber-400/80">
-                  ⏹ 已中断
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-        {isRunning && messages[messages.length - 1]?.role !== "assistant" && (
-          <div className="flex justify-start">
-            <div className="bg-zinc-800 rounded-2xl px-4 py-2.5 text-sm text-zinc-400">
-              Agent 正在思考…
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Input */}
-      <div className="border-t border-zinc-800 px-4 py-3">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            const input = form.querySelector("input")!;
-            const text = input.value.trim();
-            if (!text || !connected) return;
-            useChatStore.getState().sendPrompt(text);
-            input.value = "";
-          }}
-          className="flex gap-2"
-        >
-          <input
-            type="text"
-            placeholder={connected ? "输入消息…" : "正在连接…"}
-            disabled={!connected}
-            className="flex-1 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          {/* 输入区域 */}
+          <ChatInput
+            connected={connected}
+            isRunning={isRunning}
+            sendPrompt={sendPrompt}
+            sendAbort={sendAbort}
           />
-          {isRunning ? (
-            <button
-              type="button"
-              onClick={sendAbort}
-              className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-500 transition-colors"
-            >
-              中断
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!connected}
-              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              发送
-            </button>
-          )}
-        </form>
-      </div>
+        </>
+      ) : (
+        /* 欢迎页 */
+        <WelcomePage />
+      )}
     </div>
   );
 }
@@ -159,7 +42,7 @@ function ChatInner() {
 export function App() {
   return (
     <ChatRuntimeProvider>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen overflow-hidden bg-background">
         <Sidebar />
         <main className="flex-1 min-w-0">
           <ChatInner />
