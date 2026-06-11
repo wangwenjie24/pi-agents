@@ -1,13 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useChatStore } from "./chat-store.js";
+import { useConfigStore } from "./config-store.js";
 import { ChatRuntimeProvider } from "./ChatRuntimeProvider.js";
 import { Sidebar } from "./components/Sidebar.js";
+import { SettingsPanel } from "./components/SettingsPanel.js";
 
 function ChatInner() {
   const connected = useChatStore((s) => s.connected);
   const isRunning = useChatStore((s) => s.isRunning);
   const messages = useChatStore((s) => s.messages);
   const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const provider = useConfigStore((s) => s.provider);
+  const model = useConfigStore((s) => s.model);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // 显示当前模型信息
+  const modelInfo = provider && model ? `${provider}/${model}` : "";
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
@@ -21,10 +29,27 @@ function ChatInner() {
             </span>
           )}
         </h1>
-        <span className={`text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
-          {connected ? "● 已连接" : "○ 未连接"}
-        </span>
+        <div className="flex items-center gap-3">
+          {modelInfo && (
+            <span className="text-xs text-zinc-500">{modelInfo}</span>
+          )}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            title="模型配置"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="8" r="2.5" />
+              <path d="M13.3 10a1.2 1.2 0 00.2 1.3l.1.1a1.45 1.45 0 11-2.05 2.05l-.1-.1a1.2 1.2 0 00-1.3-.2 1.2 1.2 0 00-.73 1.1v.3a1.45 1.45 0 11-2.9 0v-.15a1.2 1.2 0 00-.79-1.1 1.2 1.2 0 00-1.3.2l-.1.1a1.45 1.45 0 11-2.05-2.05l.1-.1a1.2 1.2 0 00.2-1.3 1.2 1.2 0 00-1.1-.73h-.3a1.45 1.45 0 110-2.9h.15a1.2 1.2 0 001.1-.79 1.2 1.2 0 00-.2-1.3l-.1-.1A1.45 1.45 0 114.55 2.6l.1.1a1.2 1.2 0 001.3.2h.06a1.2 1.2 0 00.73-1.1v-.3a1.45 1.45 0 012.9 0v.15a1.2 1.2 0 00.73 1.1 1.2 1.2 0 001.3-.2l.1-.1a1.45 1.45 0 112.05 2.05l-.1.1a1.2 1.2 0 00-.2 1.3v.06a1.2 1.2 0 001.1.73h.3a1.45 1.45 0 010 2.9h-.15a1.2 1.2 0 00-1.1.73z" />
+            </svg>
+          </button>
+          <span className={`text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
+            {connected ? "● 已连接" : "○ 未连接"}
+          </span>
+        </div>
       </div>
+
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">

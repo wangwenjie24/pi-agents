@@ -7,8 +7,8 @@ describe("数据库初始化", () => {
   let db: Database.Database;
 
   it("initDb 返回数据库实例并创建 sessions 表", () => {
-    // vitest 从项目根运行，process.cwd() 即项目根
-    const migrationsDir = join(process.cwd(), "migrations");
+    // vitest 从 packages/server 运行，需上溯到项目根
+    const migrationsDir = join(process.cwd(), "..", "..", "migrations");
     db = initDb(":memory:", migrationsDir);
     expect(db).toBeDefined();
 

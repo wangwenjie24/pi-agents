@@ -5,6 +5,7 @@ import { sessions } from "./db.js";
 import { eq } from "drizzle-orm";
 import type { ClientMessage } from "@pi-chat/shared";
 import { convertEvent } from "./event-converter.js";
+import { applyConfig, type SessionContext } from "./config.js";
 
 export interface ServerOptions {
   port: number;
@@ -20,7 +21,7 @@ export async function createServer(options: ServerOptions) {
 
   wss.on("connection", (ws, req) => {
     let sessionId: string;
-    let sessionPromise: Promise<any> | null = null;
+    let sessionPromise: Promise<{ session: any; sessionContext: SessionContext | null }> | null = null;
 
     // 解析 URL 参数，支持 sessionId 恢复
     const url = new URL(req.url ?? "/", `http://localhost`);
@@ -72,26 +73,31 @@ export async function createServer(options: ServerOptions) {
       switch (msg.type) {
         case "prompt":
           if (!options.noSdk && sessionPromise) {
-            const agentSession = await sessionPromise;
+            const { session: agentSession } = await sessionPromise;
             await handlePrompt(ws, agentSession, msg.text);
           }
           break;
         case "abort":
           if (sessionPromise) {
-            const agentSession = await sessionPromise;
+            const { session: agentSession } = await sessionPromise;
             await agentSession.abort();
           }
           break;
         case "config":
-          // TODO: 处理用户配置（provider/model/apiKey）
+          if (sessionPromise) {
+            const { sessionContext } = await sessionPromise;
+            if (sessionContext) {
+              applyConfig(sessionContext, msg);
+            }
+          }
           break;
       }
     });
 
     ws.on("close", async () => {
       if (sessionPromise) {
-        const agentSession = await sessionPromise;
-        agentSession.dispose();
+        const { session } = await sessionPromise;
+        session.dispose();
       }
     });
   });
@@ -118,7 +124,7 @@ async function createAndBindSession(
   ws: WebSocket,
   sessionId: string,
   sessionsDir: string
-) {
+): Promise<{ session: any; sessionContext: SessionContext }> {
   const {
     createAgentSession,
     SessionManager,
@@ -148,13 +154,24 @@ async function createAndBindSession(
     }
   });
 
-  return session;
+  const sessionContext: SessionContext = {
+    setRuntimeApiKey: (provider: string, apiKey: string) =>
+      authStorage.setRuntimeApiKey(provider, apiKey),
+    setModel: (provider: string, modelId: string, baseUrl: string) => {
+      const model = modelRegistry.find(provider, modelId);
+      if (model) {
+        session.setModel(model);
+      }
+    },
+  };
+
+  return { session, sessionContext };
 }
 
 async function openAndBindSession(
   ws: WebSocket,
   sessionFilePath: string
-) {
+): Promise<{ session: any; sessionContext: SessionContext }> {
   const {
     createAgentSession,
     SessionManager,
@@ -181,7 +198,18 @@ async function openAndBindSession(
     }
   });
 
-  return session;
+  const sessionContext: SessionContext = {
+    setRuntimeApiKey: (provider: string, apiKey: string) =>
+      authStorage.setRuntimeApiKey(provider, apiKey),
+    setModel: (provider: string, modelId: string, baseUrl: string) => {
+      const model = modelRegistry.find(provider, modelId);
+      if (model) {
+        session.setModel(model);
+      }
+    },
+  };
+
+  return { session, sessionContext };
 }
 
 async function handlePrompt(
