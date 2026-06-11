@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import type { ServerMessage, ClientMessage } from "@pi-chat/shared";
 import { useConfigStore } from "./config-store.js";
+import {
+  getNextRetryDelay,
+  resetRetryCount,
+  type ReconnectState,
+} from "./reconnect-strategy.js";
 
 // ── 类型定义 ──
 
@@ -18,11 +23,18 @@ export interface Session {
   updatedAt: string;
 }
 
+export type ConnectionStatus =
+  | "connected"
+  | "disconnected"
+  | "connecting"
+  | "reconnecting";
+
 // ── 状态 ──
 
 export interface ChatState {
   // WebSocket
   connected: boolean;
+  connectionStatus: ConnectionStatus;
   isRunning: boolean;
   ws: WebSocket | null;
 
@@ -34,6 +46,9 @@ export interface ChatState {
   // 会话管理
   sessions: Session[];
   activeSessionId: string | null;
+
+  // 断连期间的消息缓冲
+  pendingMessages: string[];
 
   // WebSocket actions
   connect: (url: string, sessionId?: string) => void;
@@ -55,6 +70,23 @@ export interface ChatState {
 let nextId = 1;
 const WS_URL = "ws://localhost:8080";
 const LS_KEY = "pi-chat:activeSessionId";
+
+// ── 重连内部状态（不在 Zustand 中暴露） ──
+
+let _reconnectState: ReconnectState = { attemptCount: 0 };
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let _isIntentionalDisconnect = false;
+let _lastConnectUrl: string = "";
+let _lastSessionId: string | undefined = undefined;
+
+function clearReconnectTimer() {
+  if (_reconnectTimer !== null) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
+  }
+}
+
+// ── 辅助函数 ──
 
 function loadActiveSessionId(): string | null {
   try { return localStorage.getItem(LS_KEY); } catch { return null; }
@@ -83,32 +115,75 @@ function flushMessages(
 
 export const useChatStore = create<ChatState>((set, get) => ({
   connected: false,
+  connectionStatus: "disconnected",
   isRunning: false,
   messages: [],
   messagesMap: {},
   ws: null,
   sessions: [],
   activeSessionId: null,
+  pendingMessages: [],
 
   // ── WebSocket ──
 
   connect(url: string, sessionId?: string) {
-    // 先断开旧连接
-    get().ws?.close();
+    // 清除可能存在的重连定时器
+    clearReconnectTimer();
 
-    const wsUrl = sessionId ? `${url}?sessionId=${sessionId}` : url;
+    // 先断开旧连接（标记为非主动断开，避免触发 disconnect 逻辑）
+    const oldWs = get().ws;
+    if (oldWs) {
+      _isIntentionalDisconnect = true;
+      oldWs.close();
+    }
+
+    _isIntentionalDisconnect = false;
+    _lastConnectUrl = url;
+    _lastSessionId = sessionId ?? get().activeSessionId ?? undefined;
+
+    const wsUrl = _lastSessionId ? `${url}?sessionId=${_lastSessionId}` : url;
     const ws = new WebSocket(wsUrl);
 
+    set({ ws, connectionStatus: "connecting" });
+
     ws.onopen = () => {
-      set({ connected: true, ws });
+      _reconnectState = resetRetryCount(_reconnectState);
+      set({ connected: true, ws, connectionStatus: "connected" });
+
       // 连接建立后自动发送用户配置
       const config = useConfigStore.getState().getConfigMessage();
       if (config.provider || config.model || config.baseUrl || config.apiKey) {
         ws.send(JSON.stringify(config));
       }
+
+      // 发送缓冲消息
+      const pending = get().pendingMessages;
+      if (pending.length > 0) {
+        for (const text of pending) {
+          const clientMsg: ClientMessage = { type: "prompt", text };
+          ws.send(JSON.stringify(clientMsg));
+        }
+        set({ pendingMessages: [] });
+      }
     };
-    ws.onclose = () => set({ connected: false, ws: null });
-    ws.onerror = () => set({ connected: false });
+
+    ws.onclose = () => {
+      set({ connected: false, ws: null });
+
+      if (_isIntentionalDisconnect) {
+        set({ connectionStatus: "disconnected" });
+        return;
+      }
+
+      // 自动重连
+      set({ connectionStatus: "reconnecting" });
+      scheduleReconnect();
+    };
+
+    ws.onerror = () => {
+      // onerror 之后浏览器通常会再触发 onclose
+      // 所以这里不重复设置状态，只记录
+    };
 
     ws.onmessage = (e) => {
       try {
@@ -118,18 +193,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // ignore invalid messages
       }
     };
-
-    set({ ws });
   },
 
   disconnect() {
+    _isIntentionalDisconnect = true;
+    clearReconnectTimer();
     get().ws?.close();
-    set({ ws: null, connected: false });
+    set({ ws: null, connected: false, connectionStatus: "disconnected" });
   },
 
   sendPrompt(text: string) {
-    const { ws, messages } = get();
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const { ws, connected, connectionStatus } = get();
+
+    // 断连或重连中时，缓冲消息
+    if (!ws || ws.readyState !== WebSocket.OPEN || !connected) {
+      if (connectionStatus === "reconnecting" || connectionStatus === "disconnected") {
+        set((s) => ({
+          pendingMessages: [...s.pendingMessages, text],
+        }));
+      }
+      return;
+    }
+
+    const { messages: currentMessages } = get();
 
     const userMsg: ChatMessage = {
       id: `msg-${nextId++}`,
@@ -145,7 +231,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       status: "streaming",
     };
 
-    const next = [...messages, userMsg, assistantMsg];
+    const next = [...currentMessages, userMsg, assistantMsg];
 
     set((s) => {
       const flushed = flushMessages({ ...s, messages: next });
@@ -259,6 +345,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // 新建场景：服务端返回 sessionId，此时 activeSessionId 还没设
         if (!get().activeSessionId && msg.sessionId) {
           set({ activeSessionId: msg.sessionId });
+          _lastSessionId = msg.sessionId;
           saveActiveSessionId(msg.sessionId);
           get().fetchSessions();
         }
@@ -338,3 +425,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 }));
+
+// ── 重连调度 ──
+
+function scheduleReconnect() {
+  const { delay, attemptCount } = getNextRetryDelay(_reconnectState);
+  _reconnectState = { attemptCount };
+
+  _reconnectTimer = setTimeout(() => {
+    _reconnectTimer = null;
+    // 使用保存的 URL 和 sessionId 重连
+    useChatStore.getState().connect(_lastConnectUrl, _lastSessionId);
+  }, delay);
+}
