@@ -37,19 +37,10 @@ Single-context layout — one `CONTEXT.md` and one `docs/adr/` at the repo root.
 
 **不用**：简单单文件修改、已熟悉的代码、快速问答。
 
-## 流程选择
+## Worker 执行规则
 
-当用户要求用 subagent 完成开发时，先判断场景，再告知选用的流程，然后执行：
-
-- **标准**（新功能 / 不熟悉的模块）：scout → planner → worker → reviewer → worker
-- **紧急修复**（快速定位问题）：oracle → worker → reviewer
-- **大重构**（多模块变更）：parallel scout → planner → parallel worker → parallel reviewer
-
-涉及 `worker` 改代码的流程，启动时统一加 `worktree: true`。
-
-## Async 后台
-
-耗时任务加 `--bg`，完成后 Pi 自动通知。不要轮询等待。
+- 所有 `worker` 任务统一使用 async 后台模式（`--bg`），完成后 Pi 自动通知
+- 涉及 `worker` 改代码时，统一加 `worktree: true`
 
 ## 提示词原则
 
