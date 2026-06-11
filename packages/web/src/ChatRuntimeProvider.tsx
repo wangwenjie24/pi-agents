@@ -7,8 +7,28 @@ import {
 import { useChatStore, type ChatMessage } from "./chat-store.js";
 import React from "react";
 
-/** 将我们的 ChatMessage 转换为 assistant-ui 的 ThreadMessageLike */
 function toThreadMessageLike(msg: ChatMessage): ThreadMessageLike {
+  if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
+    // 将 toolCalls 映射为 assistant-ui 的 content parts
+    const toolParts = msg.toolCalls.map((tc, idx) => ({
+      type: "tool-call" as const,
+      toolName: tc.toolName,
+      toolCallId: `tc-${tc.toolName}-${idx}`,
+      args: {},
+      argsText: "",
+      ...(tc.result !== undefined ? { result: tc.result } : {}),
+    }));
+
+    const textParts = msg.content
+      ? [{ type: "text" as const, text: msg.content }]
+      : [];
+
+    return {
+      role: "assistant",
+      content: [...toolParts, ...textParts],
+    };
+  }
+
   return {
     role: msg.role === "user" ? "user" : "assistant",
     content: [{ type: "text", text: msg.content }],

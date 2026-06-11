@@ -4,11 +4,19 @@ import { useConfigStore } from "./config-store.js";
 
 // ── 类型定义 ──
 
+export interface ToolCall {
+  toolName: string;
+  status: "running" | "done";
+  output?: string;
+  result?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  status: "streaming" | "done";
+  status: "streaming" | "done" | "aborted";
+  toolCalls?: ToolCall[];
 }
 
 export interface Session {
@@ -157,9 +165,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendAbort() {
-    const { ws } = get();
+    const { ws, messages } = get();
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: "abort" }));
+
+    // 立即将最后一条 assistant 消息标记为 aborted
+    const updated = [...messages];
+    const last = updated[updated.length - 1];
+    if (last && last.role === "assistant" && last.status === "streaming") {
+      updated[updated.length - 1] = { ...last, status: "aborted" };
+    }
+    set((s) => {
+      const flushed = flushMessages({ ...s, messages: updated });
+      return {
+        messages: updated,
+        messagesMap: flushed.messagesMap,
+        isRunning: false,
+      };
+    });
   },
 
   // ── 会话 CRUD ──
@@ -330,11 +353,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
       case "agent_end":
         break;
 
-      case "tool_start":
-      case "tool_update":
-      case "tool_end":
-        // TODO: 在 UI 中展示工具调用信息
+      case "tool_start": {
+        const updated = [...messages];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant") {
+          const toolCalls = [...(last.toolCalls ?? [])];
+          toolCalls.push({
+            toolName: (msg as any).toolName,
+            status: "running",
+          });
+          updated[updated.length - 1] = { ...last, toolCalls };
+        }
+        set((s) => {
+          const flushed = flushMessages({ ...s, messages: updated });
+          return { messages: updated, messagesMap: flushed.messagesMap };
+        });
         break;
+      }
+
+      case "tool_update": {
+        const updated = [...messages];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant" && last.toolCalls) {
+          const toolCalls = [...last.toolCalls];
+          const runningIdx = toolCalls.findIndex((tc) => tc.status === "running");
+          if (runningIdx >= 0) {
+            toolCalls[runningIdx] = {
+              ...toolCalls[runningIdx],
+              output: (toolCalls[runningIdx].output ?? "") + (msg as any).output,
+            };
+          }
+          updated[updated.length - 1] = { ...last, toolCalls };
+        }
+        set((s) => {
+          const flushed = flushMessages({ ...s, messages: updated });
+          return { messages: updated, messagesMap: flushed.messagesMap };
+        });
+        break;
+      }
+
+      case "tool_end": {
+        const updated = [...messages];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant" && last.toolCalls) {
+          const toolCalls = [...last.toolCalls];
+          const runningIdx = toolCalls.findIndex((tc) => tc.status === "running");
+          if (runningIdx >= 0) {
+            toolCalls[runningIdx] = {
+              ...toolCalls[runningIdx],
+              status: "done" as const,
+              result: (msg as any).result,
+            };
+          }
+          updated[updated.length - 1] = { ...last, toolCalls };
+        }
+        set((s) => {
+          const flushed = flushMessages({ ...s, messages: updated });
+          return { messages: updated, messagesMap: flushed.messagesMap };
+        });
+        break;
+      }
     }
   },
 }));

@@ -12,6 +12,7 @@ function ChatInner() {
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const provider = useConfigStore((s) => s.provider);
   const model = useConfigStore((s) => s.model);
+  const sendAbort = useChatStore((s) => s.sendAbort);
   const [showSettings, setShowSettings] = useState(false);
 
   // 显示当前模型信息
@@ -65,7 +66,42 @@ function ChatInner() {
                   : "bg-zinc-800 text-zinc-100"
               }`}
             >
+              {/* 工具调用展示 */}
+              {msg.toolCalls && msg.toolCalls.length > 0 && (
+                <div className="mb-2 space-y-1.5">
+                  {msg.toolCalls.map((tc, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-700/50 text-xs"
+                    >
+                      <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        tc.status === "running"
+                          ? "bg-amber-400 animate-pulse"
+                          : "bg-emerald-400"
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-zinc-300">{tc.toolName}</span>
+                        {tc.status === "running" && (
+                          <span className="ml-1.5 text-zinc-500">执行中…</span>
+                        )}
+                        {tc.output && (
+                          <p className="mt-0.5 text-zinc-500 truncate">{tc.output}</p>
+                        )}
+                        {tc.result && (
+                          <p className="mt-0.5 text-zinc-400 line-clamp-2">{tc.result}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="whitespace-pre-wrap">{msg.content || "…"}</p>
+              {/* 中断标记 */}
+              {msg.status === "aborted" && (
+                <span className="inline-block mt-1 text-xs text-amber-400/80">
+                  ⏹ 已中断
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -98,13 +134,23 @@ function ChatInner() {
             disabled={!connected}
             className="flex-1 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           />
-          <button
-            type="submit"
-            disabled={!connected || isRunning}
-            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            发送
-          </button>
+          {isRunning ? (
+            <button
+              type="button"
+              onClick={sendAbort}
+              className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-500 transition-colors"
+            >
+              中断
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!connected}
+              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              发送
+            </button>
+          )}
         </form>
       </div>
     </div>

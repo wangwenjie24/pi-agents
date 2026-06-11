@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import type { ClientMessage } from "@pi-chat/shared";
 import { convertEvent } from "./event-converter.js";
 import { applyConfig, type SessionContext } from "./config.js";
+import { createTavilyTool } from "./tavily-tool.js";
+import { createTavilyTool } from "./tavily-tool.js";
 
 export interface ServerOptions {
   port: number;
@@ -140,11 +142,14 @@ async function createAndBindSession(
     sessionsDir
   );
 
+  const tavilyTool = createTavilyTool();
+
   const { session } = await createAgentSession({
     sessionManager,
     authStorage,
     modelRegistry,
-    tools: ["read", "grep", "find", "ls"],
+    tools: ["read", "grep", "find", "ls", "tavily_search"],
+    customTools: [tavilyTool],
   });
 
   session.subscribe((event: any) => {
@@ -184,11 +189,14 @@ async function openAndBindSession(
 
   const sessionManager = SessionManager.open(sessionFilePath);
 
+  const tavilyTool = createTavilyTool();
+
   const { session } = await createAgentSession({
     sessionManager,
     authStorage,
     modelRegistry,
-    tools: ["read", "grep", "find", "ls"],
+    tools: ["read", "grep", "find", "ls", "tavily_search"],
+    customTools: [tavilyTool],
   });
 
   session.subscribe((event: any) => {
