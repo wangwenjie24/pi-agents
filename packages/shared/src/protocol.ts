@@ -41,6 +41,11 @@ export interface ChatErrorMessage {
   error: string;
 }
 
+export interface SessionErrorMessage {
+  type: "session_error";
+  error: string;
+}
+
 export interface AgentStartMessage {
   type: "agent_start";
 }
@@ -70,6 +75,7 @@ export type ServerMessage =
   | ChatDeltaMessage
   | ChatDoneMessage
   | ChatErrorMessage
+  | SessionErrorMessage
   | AgentStartMessage
   | AgentEndMessage
   | ToolStartMessage

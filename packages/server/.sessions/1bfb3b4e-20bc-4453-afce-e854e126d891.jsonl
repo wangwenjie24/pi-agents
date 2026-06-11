@@ -1,0 +1,13 @@
+{"type":"session","version":3,"id":"019eb4aa-81b6-71ce-bfde-a947442a18a9","timestamp":"2026-06-11T03:12:13.750Z","cwd":"/Users/wangwenjie/Documents/workspace/pi-agents/packages/server"}
+{"type":"model_change","id":"3055aaa9","parentId":null,"timestamp":"2026-06-11T03:12:13.915Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"9f4a2ec0","parentId":"3055aaa9","timestamp":"2026-06-11T03:12:13.915Z","thinkingLevel":"high"}
+{"type":"model_change","id":"4c70634b","parentId":"9f4a2ec0","timestamp":"2026-06-11T03:12:15.881Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"06b20fd8","parentId":"4c70634b","timestamp":"2026-06-11T03:12:15.881Z","thinkingLevel":"high"}
+{"type":"model_change","id":"6fa087f3","parentId":"06b20fd8","timestamp":"2026-06-11T03:12:17.801Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"d39422c2","parentId":"6fa087f3","timestamp":"2026-06-11T03:12:17.801Z","thinkingLevel":"high"}
+{"type":"model_change","id":"ca1ea8b9","parentId":"d39422c2","timestamp":"2026-06-11T03:12:18.843Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"84deeeba","parentId":"ca1ea8b9","timestamp":"2026-06-11T03:12:18.843Z","thinkingLevel":"high"}
+{"type":"model_change","id":"1b25a9aa","parentId":"84deeeba","timestamp":"2026-06-11T03:12:20.262Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"aae3d696","parentId":"1b25a9aa","timestamp":"2026-06-11T03:12:20.262Z","thinkingLevel":"high"}
+{"type":"model_change","id":"13301e8e","parentId":"aae3d696","timestamp":"2026-06-11T03:12:22.042Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"6a5783b4","parentId":"13301e8e","timestamp":"2026-06-11T03:12:22.042Z","thinkingLevel":"high"}

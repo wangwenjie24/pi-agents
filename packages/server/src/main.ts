@@ -1,7 +1,8 @@
-import express from "express";
-import { createServer } from "http";
+import { createServer as createHttpServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { randomUUID } from "crypto";
+import { createApp, createSessionRecord } from "./app.js";
+import { sessions } from "./db.js";
+import { eq } from "drizzle-orm";
 import type { ClientMessage } from "@pi-chat/shared";
 import { convertEvent } from "./event-converter.js";
 
@@ -11,29 +12,61 @@ export interface ServerOptions {
   noSdk?: boolean;
 }
 
-export async function startServer(options: ServerOptions) {
-  const app = express();
-  const server = createServer(app);
+export async function createServer(options: ServerOptions) {
+  const ctx = createApp();
+  const { app, sessionsDir, db } = ctx;
+  const server = createHttpServer(app);
   const wss = new WebSocketServer({ server });
 
-  // 健康检查
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok" });
-  });
-
-  wss.on("connection", (ws) => {
-    const sessionId = randomUUID();
+  wss.on("connection", (ws, req) => {
+    let sessionId: string;
     let sessionPromise: Promise<any> | null = null;
 
-    // 连接建立，发送 connected
-    send(ws, { type: "connected", sessionId });
+    // 解析 URL 参数，支持 sessionId 恢复
+    const url = new URL(req.url ?? "/", `http://localhost`);
+    const requestedSessionId = url.searchParams.get("sessionId");
+
+    if (requestedSessionId) {
+      // 使用 Drizzle 查询会话是否存在
+      const rows = db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.id, requestedSessionId))
+        .limit(1)
+        .all();
+
+      if (rows.length === 0) {
+        send(ws, {
+          type: "session_error",
+          error: "会话不存在",
+        });
+        ws.close();
+        return;
+      }
+
+      sessionId = requestedSessionId;
+      send(ws, { type: "connected", sessionId });
+
+      if (!options.noSdk) {
+        sessionPromise = openAndBindSession(ws, rows[0].sessionFilePath);
+      }
+    } else {
+      // 创建新会话：写入数据库 + 创建 JSONL 文件
+      const record = createSessionRecord(db, sessionsDir);
+      sessionId = record.id;
+      send(ws, { type: "connected", sessionId });
+
+      if (!options.noSdk) {
+        sessionPromise = createAndBindSession(ws, sessionId, sessionsDir);
+      }
+    }
 
     ws.on("message", async (raw) => {
       let msg: ClientMessage;
       try {
         msg = JSON.parse(raw.toString());
       } catch {
-        return; // 无效 JSON，忽略
+        return;
       }
 
       switch (msg.type) {
@@ -61,11 +94,6 @@ export async function startServer(options: ServerOptions) {
         agentSession.dispose();
       }
     });
-
-    // 在非测试模式下，连接时创建 Agent Session
-    if (!options.noSdk) {
-      sessionPromise = createAndBindSession(ws, sessionId);
-    }
   });
 
   return new Promise<{ stop: () => Promise<void> }>((resolve) => {
@@ -86,7 +114,11 @@ function send(ws: WebSocket, msg: any) {
   }
 }
 
-async function createAndBindSession(ws: WebSocket, sessionId: string) {
+async function createAndBindSession(
+  ws: WebSocket,
+  sessionId: string,
+  sessionsDir: string
+) {
   const {
     createAgentSession,
     SessionManager,
@@ -97,14 +129,51 @@ async function createAndBindSession(ws: WebSocket, sessionId: string) {
   const authStorage = AuthStorage.create();
   const modelRegistry = ModelRegistry.create(authStorage);
 
+  const sessionManager = SessionManager.create(
+    process.cwd(),
+    sessionsDir
+  );
+
   const { session } = await createAgentSession({
-    sessionManager: SessionManager.inMemory(),
+    sessionManager,
     authStorage,
     modelRegistry,
     tools: ["read", "grep", "find", "ls"],
   });
 
-  // 订阅事件并转换为自定义协议发送给前端
+  session.subscribe((event: any) => {
+    const serverMessages = convertEvent(event);
+    for (const msg of serverMessages) {
+      send(ws, msg);
+    }
+  });
+
+  return session;
+}
+
+async function openAndBindSession(
+  ws: WebSocket,
+  sessionFilePath: string
+) {
+  const {
+    createAgentSession,
+    SessionManager,
+    AuthStorage,
+    ModelRegistry,
+  } = await import("@earendil-works/pi-coding-agent");
+
+  const authStorage = AuthStorage.create();
+  const modelRegistry = ModelRegistry.create(authStorage);
+
+  const sessionManager = SessionManager.open(sessionFilePath);
+
+  const { session } = await createAgentSession({
+    sessionManager,
+    authStorage,
+    modelRegistry,
+    tools: ["read", "grep", "find", "ls"],
+  });
+
   session.subscribe((event: any) => {
     const serverMessages = convertEvent(event);
     for (const msg of serverMessages) {
@@ -118,7 +187,7 @@ async function createAndBindSession(ws: WebSocket, sessionId: string) {
 async function handlePrompt(
   ws: WebSocket,
   agentSession: any,
-  text: string,
+  text: string
 ) {
   try {
     if (!agentSession) {
@@ -131,15 +200,14 @@ async function handlePrompt(
   }
 }
 
-// ── 默认启动入口（仅直接执行时运行） ──
-// 使用 import.meta.url 判断是否为入口文件
+// ── 默认启动入口 ──
 const IS_MAIN =
   process.argv[1]?.includes("main.ts") ||
   process.argv[1]?.includes("main.js");
 
 if (IS_MAIN) {
   const PORT = parseInt(process.env.PORT ?? "8080", 10);
-  startServer({ port: PORT }).then(() => {
+  createServer({ port: PORT }).then(() => {
     console.log(`Pi Chat server listening on port ${PORT}`);
   });
 }
