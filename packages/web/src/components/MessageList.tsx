@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { MarkdownContent } from "./MarkdownContent.js";
+import { ToolCallCard } from "./ToolCallCard.js";
 import type { ChatMessage } from "../chat-store.js";
 
 interface MessageListProps {
@@ -76,30 +77,7 @@ export function MessageList({ messages, isRunning }: MessageListProps) {
                 {msg.toolCalls && msg.toolCalls.length > 0 && (
                   <div className="mb-2 space-y-1.5">
                     {msg.toolCalls.map((tc, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-start gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-xs"
-                      >
-                        <span
-                          className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            tc.status === "running"
-                              ? "bg-foreground/40 animate-pulse"
-                              : "bg-foreground"
-                          }`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium">{tc.toolName}</span>
-                          {tc.status === "running" && (
-                            <span className="ml-1.5 text-muted-foreground">执行中…</span>
-                          )}
-                          {tc.output && (
-                            <p className="mt-0.5 text-muted-foreground truncate">{tc.output}</p>
-                          )}
-                          {tc.result && (
-                            <p className="mt-0.5 text-foreground/70 line-clamp-2">{tc.result}</p>
-                          )}
-                        </div>
-                      </div>
+                      <ToolCallCard key={idx} toolCall={tc} />
                     ))}
                   </div>
                 )}

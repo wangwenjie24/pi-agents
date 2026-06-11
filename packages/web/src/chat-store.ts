@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ServerMessage, ClientMessage } from "@pi-chat/shared";
 import { useConfigStore } from "./config-store.js";
+import { toast } from "sonner";
 import {
   getNextRetryDelay,
   resetRetryCount,
@@ -427,11 +428,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             isRunning: false,
           };
         });
+        toast.error(msg.error);
         break;
       }
 
       case "session_error": {
         console.error("Session error:", msg.error);
+        toast.error(msg.error);
         break;
       }
 
