@@ -15,6 +15,8 @@ function ChatInner() {
   const messages = useChatStore((s) => s.messages);
   const sendPrompt = useChatStore((s) => s.sendPrompt);
   const sendAbort = useChatStore((s) => s.sendAbort);
+  const editMessage = useChatStore((s) => s.editMessage);
+  const regenerateMessage = useChatStore((s) => s.regenerateMessage);
 
   const hasMessages = messages.length > 0;
 
@@ -23,7 +25,12 @@ function ChatInner() {
       {hasMessages ? (
         <>
           {/* 消息列表 */}
-          <MessageList messages={messages} isRunning={isRunning} />
+          <MessageList
+            messages={messages}
+            isRunning={isRunning}
+            onEditMessage={(id, content) => editMessage(id, content)}
+            onRegenerateMessage={(id) => regenerateMessage(id)}
+          />
 
           {/* 输入区域 */}
           <ChatInput
