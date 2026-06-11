@@ -115,6 +115,39 @@ describe("WebSocket 服务器", () => {
     expect(firstMessage.error).toBeDefined();
   });
 
+  // ── 用户配置（config 消息） ──
+
+  it("发送 config 消息后服务器不会断开连接", async () => {
+    const ws = new WebSocket(`ws://localhost:${PORT}`);
+
+    // 等待 connected 消息
+    const connectedMsg = await new Promise<any>((resolve, reject) => {
+      ws.on("message", (data) => {
+        resolve(JSON.parse(data.toString()));
+      });
+      ws.on("error", reject);
+      setTimeout(() => reject(new Error("timeout")), 5000);
+    });
+    expect(connectedMsg.type).toBe("connected");
+
+    // 发送 config 消息
+    ws.send(
+      JSON.stringify({
+        type: "config",
+        provider: "openai",
+        model: "gpt-4o",
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "sk-test-123",
+      })
+    );
+
+    // 等待一小段时间确认服务器没有断开连接
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+
+    ws.close();
+  });
+
   // ── WebSocket 新建会话写入数据库 ──
 
   it("WebSocket 新建会话后，通过 REST GET 确认记录存在", async () => {

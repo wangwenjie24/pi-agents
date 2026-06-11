@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ServerMessage, ClientMessage } from "@pi-chat/shared";
+import { useConfigStore } from "./config-store.js";
 
 // ── 类型定义 ──
 
@@ -98,7 +99,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const wsUrl = sessionId ? `${url}?sessionId=${sessionId}` : url;
     const ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => set({ connected: true, ws });
+    ws.onopen = () => {
+      set({ connected: true, ws });
+      // 连接建立后自动发送用户配置
+      const config = useConfigStore.getState().getConfigMessage();
+      if (config.provider || config.model || config.baseUrl || config.apiKey) {
+        ws.send(JSON.stringify(config));
+      }
+    };
     ws.onclose = () => set({ connected: false, ws: null });
     ws.onerror = () => set({ connected: false });
 
