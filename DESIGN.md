@@ -3,96 +3,172 @@
 ---
 name: Pi Chat
 description: 高效专业的多用户 AI 聊天应用
+colors:
+  background: "#ffffff"
+  foreground: "#171717"
+  primary: "#171717"
+  primary-foreground: "#ffffff"
+  secondary: "#f5f5f5"
+  secondary-foreground: "#171717"
+  muted: "#f5f5f5"
+  muted-foreground: "#8f8f8f"
+  accent: "#f5f5f5"
+  accent-foreground: "#171717"
+  border: "#ebebeb"
+  input: "#ebebeb"
+  ring: "#dbdbdb"
+  destructive: "#d64545"
+  sidebar: "#fafafa"
+  sidebar-border: "#ebebeb"
+typography:
+  body:
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.6
+  heading:
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontWeight: 600
+    lineHeight: 1.3
+rounded:
+  sm: "6px"
+  md: "8px"
+  lg: "10px"
+  xl: "16px"
+  full: "9999px"
+spacing:
+  sm: "4px"
+  md: "8px"
+  lg: "16px"
+  xl: "24px"
 ---
 
 # Design System: Pi Chat
 
 ## 1. Overview
 
-**Creative North Star: "安静的工位"**
+**Creative North Star: "白纸上的对话"**
 
-一个光线充足、桌面整洁的工位。没有多余的装饰，每样东西都在它该在的位置。你坐下来就能开始工作，不需要整理桌面，不需要调整台灯。界面就是这个工位——对话是桌上的文件，工具栏是抽屉里触手可及的文具。
+一张干净的白纸，上面只有正在进行的对话。没有品牌色块、没有装饰线条、没有视觉噪音。界面完全透明——用户看到的只有文字和交互。参考 LangChain agent-chat-ui 的极简克制，但为 Pi Chat 的多用户协作场景做适配。
 
-参考 ChatGPT 的对话流和 Claude 的排版克制感，但不模仿任何一方。Pi Chat 比两者更安静：更少的视觉层次，更少的装饰元素，更少的色彩。专业感来自精确的间距和一致的节奏，不来自精心设计的品牌感。
-
-这个系统明确拒绝：聊天室式的视觉噪音、企业 IM 的功能堆砌、任何让用户注意到"界面"而不是"对话"的设计选择。
+这个系统从 agent-chat-ui 继承的核心决定：纯单色调（零色度），无品牌强调色，所有层级通过明度差异表达。AI 消息不使用气泡，直接渲染 Markdown；用户消息使用淡灰背景圆角条。
 
 **Key Characteristics:**
-- 单一 sans 字体家族，不做 display/body 配对
-- 纯白背景 + 一个深靛蓝强调色，强调色只出现在交互元素上
-- 无装饰动效，过渡仅服务于状态切换
-- 信息密度够但不拥挤——用户不需要反复滚动
+- 纯中性色阶，primary 就是近黑色，没有任何饱和色
+- 单一 sans 字体家族（Inter），不做 display/body 配对
+- AI 消息无气泡，用户消息 muted 背景 + 大圆角
+- 300px 可收起侧边栏 + 居中聊天区 + 可扩展右侧面板
+- 动效仅用于布局切换（侧边栏滑入/滑出），消息无入场动画
 
 ## 2. Colors
 
-**The Restrained Rule.** 强调色只出现在需要用户注意的交互元素上：主按钮、当前选中项、焦点环、活跃状态指示器。屏幕上强调色占比 ≤10%。其余全是中性色。
+**The Monochrome Rule.** 整个界面使用纯中性色阶，色度恒为 0。没有任何品牌强调色。交互层级通过明度差异和排版表达，不通过颜色。这是从 agent-chat-ui 继承的最核心决定。
 
-**The Pure Surface Rule.** 背景是纯白，不加任何色相偏移。温暖感或专业感由强调色和排版传递，不由背景承载。
+**The Dark Mode Mirror Rule.** 暗色模式是亮色模式的精确反转：背景和前景互换，secondary/muted 取相同的相对深度位置。不引入色相。
 
-### Primary
-- **Deep Indigo** (`oklch(0.478 0.136 252)` / 近似 `#3a4fcf`): 唯一的强调色。用于主按钮背景、选中态、焦点环、发送按钮活跃态。在这个色值上始终使用白色文字。
+### Neutral (light mode)
 
-### Accent
-- **Warm Amber** (`oklch(0.72 0.15 75)` / 近似 `#c48b2a`): 次要强调，仅用于状态指示——未读消息标记、成功/警告提示。与 primary 保持 ≥1.7 对比度。
+| Token | OKLCH | Hex | Role |
+|-------|-------|-----|------|
+| background | `oklch(1 0 0)` | `#ffffff` | 主背景 |
+| foreground | `oklch(0.145 0 0)` | `#171717` | 正文文字 |
+| primary | `oklch(0.205 0 0)` | `#171717` | 主按钮背景、强调交互 |
+| primary-foreground | `oklch(0.985 0 0)` | `#ffffff` | 主按钮文字 |
+| secondary | `oklch(0.97 0 0)` | `#f5f5f5` | 次要表面、用户消息气泡 |
+| secondary-foreground | `oklch(0.205 0 0)` | `#171717` | 次要表面上的文字 |
+| muted | `oklch(0.97 0 0)` | `#f5f5f5` | 淡化背景、用户消息气泡 |
+| muted-foreground | `oklch(0.556 0 0)` | `#8f8f8f` | 次要文字：时间戳、占位符 |
+| border | `oklch(0.922 0 0)` | `#ebebeb` | 分隔线、输入框边框 |
+| sidebar | `oklch(0.985 0 0)` | `#fafafa` | 侧边栏背景 |
 
-### Neutral
-- **Canvas** (`oklch(1.000 0.000 0)` / `#ffffff`): 主背景。纯白，零色相。
-- **Surface** (`oklch(0.965 0.003 252)` / 近似 `#f4f5f9`): 侧边栏、卡片、面板的背景。canvas 向 ink 方向拉 10%，带极微量的品牌蓝色调。
-- **Ink** (`oklch(0.180 0.020 252)` / 近似 `#1e2030`): 正文文字。带微量靛蓝色调的近黑色，对纯白背景对比度 ≥7:1。
-- **Muted** (`oklch(0.550 0.015 252)` / 近似 `#737898`): 次要文字——时间戳、占位文字、辅助标签。ink 向 canvas 方向拉 40%，对比度 ≥3.5:1。
-- **Border** (`oklch(0.900 0.005 252)` / 近似 `#dfe1ea`): 分隔线、输入框边框、卡片边框。极淡的靛蓝灰。
+### Semantic
+
+- **destructive** (`#d64545`): 仅用于错误状态、删除操作。这是唯一允许饱和色的 token。
+
+### Named Rules
+
+**The Zero Chroma Rule.** 除 destructive 外，所有颜色的色度为 0。不使用 OKLCH 的 C 通道。层级靠 L（明度）表达。
 
 ## 3. Typography
 
-**Body Font:** `[单个 sans 字体家族，具体选择待实现时确定。方向：偏人文感的无衬线——像 Source Sans 3 或 DM Sans 的气质，但避免 DM Sans（训练数据默认字体）。在 Google Fonts 上浏览：Outfit 之外的人文/几何交叉家族。]`
+**Font:** Inter（Google Fonts），单一家族贯穿全部 UI。
 
-**Character:** 一个干净、不带表演欲的字体。不追求个性，追求在任何字号和粗细下都清晰可读。标题靠字重和大小制造层次，不靠字体切换。
+**Character:** 干净、中性的无衬线字体。不追求个性——在一个零品牌色的界面里，字体就是品牌。Inter 的 x-height 高、可读性好，适合信息密集的聊天界面。
 
-**The Single Family Rule.** 一个家族贯穿全应用：标题、正文、按钮、标签、代码注释。等宽字体仅在代码块中使用，不属于 UI 字体层。
+**The Single Family Rule.** 一个家族覆盖所有层级：标题、正文、按钮、标签、代码注释。等宽字体仅在代码块中使用。
 
 ### Hierarchy
-- **Section Title** (600 weight, 1.125rem / 18px, line-height 1.4): 侧边栏区域标题、设置页分区标题
-- **Item Title** (500 weight, 1rem / 16px, line-height 1.5): 会话列表项标题、设置项名称
-- **Body** (400 weight, 1rem / 16px, line-height 1.6): 对话消息正文、描述文字。行宽限制 65–75ch
-- **Caption** (400 weight, 0.8125rem / 13px, line-height 1.5): 时间戳、会话预览文字、辅助说明
-- **Label** (500 weight, 0.75rem / 12px, letter-spacing 0.02em): 按钮、tab 标签、状态标记
+- **Page Title** (600, 1.5rem / 24px, lh 1.3): 品牌名、页面标题
+- **Section Title** (600, 1.125rem / 18px, lh 1.4): 侧边栏标题、设置分区
+- **Item Title** (500, 1rem / 16px, lh 1.5): 会话列表项、设置项
+- **Body** (400, 0.875rem / 14px, lh 1.6): 消息正文、描述文字。默认字号
+- **Caption** (400, 0.8125rem / 13px, lh 1.5): 时间戳、辅助文字
+- **Label** (500, 0.75rem / 12px, lh 1): 按钮、tab 标签
 
 ### Scale Ratio
-1.125x 递进，固定 rem 值，不做流体 clamp。产品 UI 在固定 DPI 下使用，fluid heading 在侧边栏里只会看起来奇怪。
+1.125x，固定 rem。产品 UI 不做流体 clamp。
 
 ## 4. Elevation
 
-**The Flat-By-Default Rule.** 默认扁平。不使用 box-shadow 制造层级。深度通过背景色差异（canvas vs surface）和边框传达。
+**The Flat Rule.** 默认扁平。层级通过背景明度差异（background vs sidebar vs muted）和 1px border 表达。不使用 box-shadow。
 
-唯一例外：弹出层（dropdown、tooltip、modal）使用一个极淡的阴影确保从页面内容中分离。
-
-- **Popup** (`box-shadow: 0 4px 16px oklch(0.180 0.020 252 / 0.08)`): 仅用于浮层——下拉菜单、tooltip、对话框。
+唯一例外：
+- **输入区域** (`shadow-xs`): 底部输入框使用极淡阴影，确保与消息流分离。
+- **浮层** (`shadow-sm`): dropdown、tooltip 使用轻阴影确保从页面脱离。
 
 ## 5. Components
 
-`[待实现后通过 $impeccable document 提取。以下为种子阶段的组件方向指引：]`
+`[待实现后通过 $impeccable document 提取。以下为基于 agent-chat-ui 参考的组件方向指引：]`
 
-### 方向指引
-- **按钮**: 圆角 6px，primary 用 Deep Indigo 填充 + 白色文字，ghost 用透明背景 + border。hover 态加深 5% lightness。focus-visible 使用 2px Deep Indigo 外环。
-- **输入框**: 圆角 6px，1px Border 色边框，focus 时边框切换为 Deep Indigo。placeholder 用 Muted 色。
-- **会话列表项**: 选中态使用 Surface 背景色，左侧无彩色条纹。hover 态使用更浅一级的 Surface。
-- **消息气泡**: 无气泡。AI 和用户消息通过排版（对齐、间距、微妙的头像/名称标签）区分，不用彩色背景块。
-- **侧边栏**: Surface 背景，与主内容区通过 Border 色分隔。可收起。
+### 布局结构
+- **左侧边栏** (300px, 可收起): `sidebar` 背景，`sidebar-border` 右边框。Framer Motion 弹簧动画 (stiffness 300, damping 30) 滑入/滑出。移动端使用 Sheet（从左侧滑入的全屏面板）。
+- **聊天主区**: 居中，`max-w-3xl` (48rem)，`background` 背景。消息列表上 padding 下 padding 大，滚动到底部自动跟随。
+- **右侧面板** (可选): `grid-cols-[1fr_0fr]` → `grid-cols-[3fr_2fr]`，500ms transition 展开/收起。用于 artifact 或详情展示。
+
+### 消息渲染
+- **AI 消息**: 左对齐，无气泡，无背景色。直接渲染 Markdown（支持 GFM、代码高亮、数学公式）。`py-1` 间距。Hover 时显示操作栏（复制、重新生成），`opacity-0 group-hover:opacity-100`。
+- **用户消息**: 右对齐，`muted` 背景，`rounded-3xl`，`px-4 py-2`。支持编辑（hover 显示编辑按钮，点击展开 textarea）。
+- **加载状态**: 三个脉动圆点，`muted` 背景，`rounded-2xl`。
+
+### 输入区域
+- 底部固定，`muted` 背景，`rounded-2xl`，`shadow-xs`。
+- Textarea：无边框，`bg-transparent`，`field-sizing-content` 自适应高度。
+- Enter 发送，Shift+Enter 换行。
+- Send 按钮：`primary` 背景即近黑色，白色文字，`shadow-md`，右对齐。加载中显示 Cancel 按钮（旋转图标）。
+- 附加操作（文件上传等）在输入框底部，`text-gray-600` 小文字 + 图标。
+
+### 按钮
+- **Primary**: `primary` 背景 + `primary-foreground` 文字，`shadow-xs`，`rounded-md` (8px)。Hover 时 `primary/90`。
+- **Ghost**: 透明背景，hover 时 `accent` 背景。
+- **Outline**: `border-input` 边框，`bg-background`，hover 时 `accent` 背景。
+- 尺寸：default `h-9 px-4`，sm `h-8 px-3`，lg `h-10 px-6`，icon `size-9`。
+
+### 侧边栏会话列表
+- 每项一个 Ghost 按钮，`w-[280px]`，文字 `truncate`。
+- 选中态：当前依赖 URL query state，不使用视觉高亮（可后续加）。
+- 加载状态：Skeleton 占位条。
+
+### 滚动条
+- 全局自定义：`w-1.5` (6px)，`rounded-full`，`bg-gray-300` thumb，`bg-transparent` track。
 
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** 使用纯白背景。`#ffffff`，不加色相偏移。
-- **Do** 让 Deep Indigo 只出现在用户需要点击或注意的元素上。一个屏幕上强调色占比不超过 10%。
-- **Do** 用间距和字重制造层次，不用颜色。
-- **Do** 保持过渡在 150–250ms，仅用于状态切换。
-- **Do** 使用 skeleton 占位而非居中 spinner。
+- **Do** 使用纯中性色阶。所有非 destructive 的颜色色度为 0。
+- **Do** 让 AI 消息无气泡、无背景，直接渲染 Markdown。
+- **Do** 让用户消息使用 `muted` 背景 + 大圆角，右对齐。
+- **Do** 用明度差异表达层级（background > sidebar > muted > border）。
+- **Do** 保持输入区域底部固定，`rounded-2xl` + 淡阴影。
+- **Do** 使用 Framer Motion 弹簧动画处理侧边栏滑入/滑出。
+- **Do** 使用 Inter 字体，不混合其他字体家族。
+- **Do** 消息操作栏使用 `opacity-0 group-hover:opacity-100` 渐显。
 
 ### Don't:
-- **Don't** 使用彩色气泡背景区分 AI 和用户消息。参考 ChatGPT 的克制做法。
-- **Don't** 添加装饰性动画、入场编排或滚动驱动动效。
-- **Don't** 在侧边栏卡片上使用 `border-left` 彩色条纹。
+- **Don't** 引入品牌强调色。这个界面的品牌就是克制本身。
+- **Don't** 给 AI 消息添加气泡或背景色。
+- **Don't** 使用入场动画、滚动驱动动效或消息出现动画。
+- **Don't** 在侧边栏使用彩色条纹、彩色圆点或其他色彩标记。
 - **Don't** 使用渐变、毛玻璃效果或彩色阴影。
-- **Don't** 让界面元素比对话内容更吸引注意力。
-- **Don't** 重新发明标准控件——自定义滚动条、非标准模态框、怪异表单控件。
-- **Don't** 在非代码的 UI 文字中使用等宽字体。
+- **Don't** 重新发明标准控件（自定义滚动条样式除外）。
+- **Don't** 在非代码 UI 文字中使用等宽字体。
+- **Don't** 使用 `border-left` / `border-right` > 1px 作为彩色装饰。
