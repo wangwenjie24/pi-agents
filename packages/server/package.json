@@ -12,6 +12,7 @@
   "dependencies": {
     "@earendil-works/pi-coding-agent": "latest",
     "@pi-chat/shared": "workspace:*",
+    "@sinclair/typebox": "^0.34.49",
     "better-sqlite3": "^12.10.0",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
