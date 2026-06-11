@@ -1,7 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useChatStore, type Session } from "../chat-store.js";
+import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile } from "../hooks/use-is-mobile.js";
 import { useThemeStore } from "../theme-store.js";
 import { Sun, Moon } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+
+const SIDEBAR_WIDTH = 300;
+const SPRING_CONFIG = { stiffness: 300, damping: 30 };
 
 export function Sidebar() {
   const sessions = useChatStore((s) => s.sessions);
@@ -15,19 +21,23 @@ export function Sidebar() {
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggle);
 
+  const [collapsed, setCollapsed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const isMobile = useIsMobile();
+
   useEffect(() => {
     fetchSessions().then(() => {
+      setLoading(false);
       const currentSessions = useChatStore.getState().sessions;
       const savedId = localStorage.getItem("pi-chat:activeSessionId");
 
-      // 优先恢复上次活跃的会话
       if (savedId && currentSessions.some((s) => s.id === savedId)) {
         useChatStore.setState({ activeSessionId: savedId });
         connect("ws://localhost:8080", savedId);
         return;
       }
 
-      // 没有保存的会话或已被删除，用列表中最近的
       if (currentSessions.length > 0) {
         const latest = currentSessions[0];
         useChatStore.setState({ activeSessionId: latest.id });
@@ -35,7 +45,6 @@ export function Sidebar() {
         return;
       }
 
-      // 完全没有会话，新建
       createSession().then((s) => {
         useChatStore.setState({ activeSessionId: s.id });
         connect("ws://localhost:8080", s.id);
@@ -46,37 +55,81 @@ export function Sidebar() {
   const handleNewSession = async () => {
     const session = await createSession();
     switchSession(session.id);
+    if (isMobile) setSheetOpen(false);
   };
 
-  return (
-    <aside className="w-[300px] flex flex-col bg-sidebar border-r border-sidebar-border h-full">
+  const handleSwitchSession = (id: string) => {
+    switchSession(id);
+    if (isMobile) setSheetOpen(false);
+  };
+
+  const sidebarContent = (
+    <>
+      {/* 品牌 Logo 区域 */}
+      <div
+        className="flex items-center gap-2 px-3 py-3 cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={handleNewSession}
+      >
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+          <span className="text-primary-foreground text-sm font-semibold">P</span>
+        </div>
+        <span className="text-sm font-semibold text-foreground">Pi Chat</span>
+      </div>
+
       {/* 顶栏 */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-sidebar-border">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-sidebar-border">
         <h2 className="text-sm font-semibold text-foreground">会话</h2>
-        <button
-          onClick={handleNewSession}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          title="新建会话"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <line x1="8" y1="3" x2="8" y2="13" />
-            <line x1="3" y1="8" x2="13" y2="8" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleNewSession}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="新建对话"
+            aria-label="新建对话"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <line x1="8" y1="3" x2="8" y2="13" />
+              <line x1="3" y1="8" x2="13" y2="8" />
+            </svg>
+          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="收起侧边栏"
+              aria-label="收起侧边栏"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="1" width="14" height="14" rx="2" />
+                <line x1="5.5" y1="1" x2="5.5" y2="15" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 会话列表 */}
       <div className="flex-1 overflow-y-auto py-1">
-        {sessions.map((session) => (
-          <SessionItem
-            key={session.id}
-            session={session}
-            isActive={session.id === activeSessionId}
-            onSwitch={() => switchSession(session.id)}
-            onDelete={() => deleteSession(session.id)}
-            onRename={(name) => renameSession(session.id, name)}
-          />
-        ))}
+        {loading ? (
+          <div className="px-3 py-2 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-8 bg-accent/30 rounded-lg animate-pulse"
+              />
+            ))}
+          </div>
+        ) : (
+          sessions.map((session) => (
+            <SessionItem
+              key={session.id}
+              session={session}
+              isActive={session.id === activeSessionId}
+              onSwitch={() => handleSwitchSession(session.id)}
+              onDelete={() => deleteSession(session.id)}
+              onRename={(name) => renameSession(session.id, name)}
+            />
+          ))
+        )}
       </div>
 
       {/* 底部：主题切换 */}
@@ -94,7 +147,68 @@ export function Sidebar() {
           <span>{theme === "light" ? "暗色模式" : "亮色模式"}</span>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  // ── 移动端：Sheet 模式 ──
+  if (isMobile) {
+    return (
+      <Dialog.Root open={sheetOpen} onOpenChange={setSheetOpen}>
+        {/* 移动端汉堡按钮 */}
+        <button
+          onClick={() => setSheetOpen(true)}
+          className="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          aria-label="打开侧边栏"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <line x1="2" y1="4" x2="14" y2="4" />
+            <line x1="2" y1="8" x2="14" y2="8" />
+            <line x1="2" y1="12" x2="14" y2="12" />
+          </svg>
+        </button>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-40" />
+          <Dialog.Content className="fixed left-0 top-0 bottom-0 w-[300px] bg-sidebar border-r border-sidebar-border z-50 flex flex-col">
+            <Dialog.Title className="sr-only">会话列表</Dialog.Title>
+            <Dialog.Description className="sr-only">管理你的会话</Dialog.Description>
+            {sidebarContent}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    );
+  }
+
+  // ── 桌面端：固定侧边栏 + 收起/展开动画 ──
+  return (
+    <AnimatePresence initial={false}>
+      {!collapsed && (
+        <motion.aside
+          initial={{ width: SIDEBAR_WIDTH }}
+          animate={{ width: SIDEBAR_WIDTH }}
+          exit={{ width: 0 }}
+          transition={{ type: "spring", ...SPRING_CONFIG }}
+          className="flex flex-col bg-sidebar border-r border-sidebar-border h-full overflow-hidden"
+          data-testid="sidebar"
+        >
+          {sidebarContent}
+        </motion.aside>
+      )}
+
+      {/* 收起状态的展开按钮 */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors self-start mt-3 ml-2"
+          title="展开侧边栏"
+          aria-label="收起侧边栏"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="1" width="14" height="14" rx="2" />
+            <line x1="5.5" y1="1" x2="5.5" y2="15" />
+          </svg>
+        </button>
+      )}
+    </AnimatePresence>
   );
 }
 
