@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
 // Mock localStorage
 const store = new Map<string, string>();
@@ -26,20 +26,24 @@ const { useConfigStore } = await import("./config-store.js");
 // 先让 config-store 初始化读取 localStorage
 useConfigStore.getState().loadFromStorage();
 
-// Mock WebSocket
+// ── Mock WebSocket ──
+
+/** 记录所有创建的 WebSocket 实例，便于测试中获取 */
+let mockWsInstances: MockWebSocket[] = [];
+
 class MockWebSocket {
   static OPEN = 1;
+  static CONNECTING = 0;
   static CLOSED = 3;
-  readyState = MockWebSocket.OPEN;
+  readyState = MockWebSocket.CONNECTING;
   onopen: (() => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
+  onclose: ((ev?: { code?: number; reason?: string }) => void) | null = null;
+  onerror: ((ev?: any) => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
   sentMessages: string[] = [];
 
   constructor(public url: string) {
-    // 异步触发 onopen，模拟真实 WebSocket
-    setTimeout(() => this.onopen?.(), 0);
+    mockWsInstances.push(this);
   }
 
   send(data: string) {
@@ -51,7 +55,24 @@ class MockWebSocket {
     this.onclose?.();
   }
 
-  // 模拟服务端发来消息
+  /** 模拟连接成功 */
+  simulateOpen() {
+    this.readyState = MockWebSocket.OPEN;
+    this.onopen?.();
+  }
+
+  /** 模拟连接关闭 */
+  simulateClose(code?: number, reason?: string) {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({ code, reason });
+  }
+
+  /** 模拟连接错误 */
+  simulateError() {
+    this.onerror?.();
+  }
+
+  /** 模拟服务端发来消息 */
   simulateMessage(data: any) {
     this.onmessage?.({ data: JSON.stringify(data) });
   }
@@ -64,212 +85,333 @@ class MockWebSocket {
   json: async () => [],
 });
 
+/** 获取最新的 WebSocket 实例 */
+function latestWs(): MockWebSocket {
+  if (mockWsInstances.length === 0) throw new Error("没有 WebSocket 实例");
+  return mockWsInstances[mockWsInstances.length - 1];
+}
+
+/** 重置所有状态 */
+function resetAll() {
+  mockWsInstances = [];
+  useChatStore.setState({
+    connected: false,
+    isRunning: false,
+    messages: [],
+    messagesMap: {},
+    ws: null,
+    sessions: [],
+    activeSessionId: null,
+    connectionStatus: "disconnected" as const,
+    pendingMessages: [],
+  });
+}
+
 const { useChatStore } = await import("./chat-store.js");
 
-describe("chat-store 工具调用展示", () => {
-  beforeEach(async () => {
-    useChatStore.setState({
-      connected: false,
-      isRunning: false,
-      messages: [],
-      messagesMap: {},
-      ws: null,
-      sessions: [],
-      activeSessionId: null,
-    });
+// ── 测试组 ──
 
-    const url = "ws://localhost:8080";
-    useChatStore.getState().connect(url);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-    ws.simulateMessage({ type: "connected", sessionId: "tool-test-session" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  });
-
-  it("收到 tool_start 时在最后一条 assistant 消息中添加工具调用信息", async () => {
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-
-    useChatStore.getState().sendPrompt("搜索天气");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    ws.simulateMessage({ type: "agent_start" });
-    ws.simulateMessage({ type: "tool_start", toolName: "tavily_search" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    const msgs = useChatStore.getState().messages;
-    const lastMsg = msgs[msgs.length - 1] as any;
-    expect(lastMsg.role).toBe("assistant");
-    expect(lastMsg.toolCalls).toBeDefined();
-    expect(lastMsg.toolCalls.length).toBe(1);
-    expect(lastMsg.toolCalls[0].toolName).toBe("tavily_search");
-    expect(lastMsg.toolCalls[0].status).toBe("running");
-  });
-
-  it("收到 tool_update 时更新工具调用的部分输出", async () => {
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-
-    useChatStore.getState().sendPrompt("搜索天气");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    ws.simulateMessage({ type: "agent_start" });
-    ws.simulateMessage({ type: "tool_start", toolName: "tavily_search" });
-    ws.simulateMessage({ type: "tool_update", output: "搜索中..." });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    const msgs = useChatStore.getState().messages;
-    const lastMsg = msgs[msgs.length - 1] as any;
-    expect(lastMsg.toolCalls[0].output).toBe("搜索中...");
-  });
-
-  it("收到 tool_end 时更新工具调用的结果和完成状态", async () => {
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-
-    useChatStore.getState().sendPrompt("搜索天气");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    ws.simulateMessage({ type: "agent_start" });
-    ws.simulateMessage({ type: "tool_start", toolName: "tavily_search" });
-    ws.simulateMessage({ type: "tool_end", result: "北京今天 25°C 晴" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    const msgs = useChatStore.getState().messages;
-    const lastMsg = msgs[msgs.length - 1] as any;
-    expect(lastMsg.toolCalls[0].result).toBe("北京今天 25°C 晴");
-    expect(lastMsg.toolCalls[0].status).toBe("done");
-  });
-
-  it("多个工具调用按顺序记录", async () => {
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-
-    useChatStore.getState().sendPrompt("搜索多个主题");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    ws.simulateMessage({ type: "agent_start" });
-    ws.simulateMessage({ type: "tool_start", toolName: "read" });
-    ws.simulateMessage({ type: "tool_end", result: "文件内容" });
-    ws.simulateMessage({ type: "tool_start", toolName: "tavily_search" });
-    ws.simulateMessage({ type: "tool_end", result: "搜索结果" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    const msgs = useChatStore.getState().messages;
-    const lastMsg = msgs[msgs.length - 1] as any;
-    expect(lastMsg.toolCalls.length).toBe(2);
-    expect(lastMsg.toolCalls[0].toolName).toBe("read");
-    expect(lastMsg.toolCalls[1].toolName).toBe("tavily_search");
-  });
-});
-
-describe("chat-store 中断回复", () => {
-  beforeEach(async () => {
-    useChatStore.setState({
-      connected: false,
-      isRunning: false,
-      messages: [],
-      messagesMap: {},
-      ws: null,
-      sessions: [],
-      activeSessionId: null,
-    });
-
-    const url = "ws://localhost:8080";
-    useChatStore.getState().connect(url);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-    ws.simulateMessage({ type: "connected", sessionId: "abort-test-session" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  });
-
-  it("中断后已生成的文本正常展示并标记为已中断", async () => {
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-
-    // 用户发送消息
-    useChatStore.getState().sendPrompt("测试中断");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    // 模拟服务端发送部分内容
-    ws.simulateMessage({ type: "agent_start" });
-    ws.simulateMessage({ type: "chat_delta", delta: "这是部分" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    // 验证正在流式输出
-    const msgsBeforeAbort = useChatStore.getState().messages;
-    const lastMsg = msgsBeforeAbort[msgsBeforeAbort.length - 1];
-    expect(lastMsg.role).toBe("assistant");
-    expect(lastMsg.content).toBe("这是部分");
-    expect(lastMsg.status).toBe("streaming");
-    expect(useChatStore.getState().isRunning).toBe(true);
-
-    // 用户点击中断
-    useChatStore.getState().sendAbort();
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    // 验证中断后的状态
-    const msgsAfterAbort = useChatStore.getState().messages;
-    const abortedMsg = msgsAfterAbort[msgsAfterAbort.length - 1];
-    expect(abortedMsg.content).toBe("这是部分");
-    expect(abortedMsg.status).toBe("aborted");
-    expect(useChatStore.getState().isRunning).toBe(false);
-  });
-
-  it("中断消息通过 WebSocket 发送 abort 类型", async () => {
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-
-    useChatStore.getState().sendPrompt("测试");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    ws.simulateMessage({ type: "agent_start" });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    useChatStore.getState().sendAbort();
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    const abortMsg = ws.sentMessages
-      .map((raw) => JSON.parse(raw))
-      .find((msg) => msg.type === "abort");
-    expect(abortMsg).toBeDefined();
-  });
-});
-
-describe("chat-store WebSocket 连接时发送 config", () => {
+describe("chat-store", () => {
   beforeEach(() => {
-    // 重置 chat-store 状态
-    useChatStore.setState({
-      connected: false,
-      isRunning: false,
-      messages: [],
-      messagesMap: {},
-      ws: null,
-      sessions: [],
-      activeSessionId: null,
+    vi.useFakeTimers();
+    resetAll();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  describe("工具调用展示", () => {
+    beforeEach(() => {
+      resetAll();
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "tool-test-session" });
+    });
+
+    it("收到 tool_start 时在最后一条 assistant 消息中添加工具调用信息", () => {
+      useChatStore.getState().sendPrompt("搜索天气");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "tool_start", toolName: "tavily_search" });
+
+      const msgs = useChatStore.getState().messages;
+      const lastMsg = msgs[msgs.length - 1] as any;
+      expect(lastMsg.role).toBe("assistant");
+      expect(lastMsg.toolCalls).toBeDefined();
+      expect(lastMsg.toolCalls.length).toBe(1);
+      expect(lastMsg.toolCalls[0].toolName).toBe("tavily_search");
+      expect(lastMsg.toolCalls[0].status).toBe("running");
+    });
+
+    it("收到 tool_update 时更新工具调用的部分输出", () => {
+      useChatStore.getState().sendPrompt("搜索天气");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "tool_start", toolName: "tavily_search" });
+      latestWs().simulateMessage({ type: "tool_update", output: "搜索中..." });
+
+      const msgs = useChatStore.getState().messages;
+      const lastMsg = msgs[msgs.length - 1] as any;
+      expect(lastMsg.toolCalls[0].output).toBe("搜索中...");
+    });
+
+    it("收到 tool_end 时更新工具调用的结果和完成状态", () => {
+      useChatStore.getState().sendPrompt("搜索天气");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "tool_start", toolName: "tavily_search" });
+      latestWs().simulateMessage({ type: "tool_end", result: "北京今天 25°C 晴" });
+
+      const msgs = useChatStore.getState().messages;
+      const lastMsg = msgs[msgs.length - 1] as any;
+      expect(lastMsg.toolCalls[0].result).toBe("北京今天 25°C 晴");
+      expect(lastMsg.toolCalls[0].status).toBe("done");
+    });
+
+    it("多个工具调用按顺序记录", () => {
+      useChatStore.getState().sendPrompt("搜索多个主题");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "tool_start", toolName: "read" });
+      latestWs().simulateMessage({ type: "tool_end", result: "文件内容" });
+      latestWs().simulateMessage({ type: "tool_start", toolName: "tavily_search" });
+      latestWs().simulateMessage({ type: "tool_end", result: "搜索结果" });
+
+      const msgs = useChatStore.getState().messages;
+      const lastMsg = msgs[msgs.length - 1] as any;
+      expect(lastMsg.toolCalls.length).toBe(2);
+      expect(lastMsg.toolCalls[0].toolName).toBe("read");
+      expect(lastMsg.toolCalls[1].toolName).toBe("tavily_search");
     });
   });
 
-  it("WebSocket 连接成功后自动发送 config 消息", async () => {
-    const url = "ws://localhost:8080";
-    useChatStore.getState().connect(url);
+  describe("中断回复", () => {
+    beforeEach(() => {
+      resetAll();
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "abort-test-session" });
+    });
 
-    // 等待 onopen 触发
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    it("中断后已生成的文本正常展示并标记为已中断", () => {
+      useChatStore.getState().sendPrompt("测试中断");
 
-    // 获取 MockWebSocket 实例
-    const ws = useChatStore.getState().ws as unknown as MockWebSocket;
-    expect(ws).toBeDefined();
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "chat_delta", delta: "这是部分" });
 
-    // 模拟服务端返回 connected 消息
-    ws.simulateMessage({ type: "connected", sessionId: "test-session-1" });
+      // 验证正在流式输出
+      const msgsBeforeAbort = useChatStore.getState().messages;
+      const lastMsg = msgsBeforeAbort[msgsBeforeAbort.length - 1];
+      expect(lastMsg.role).toBe("assistant");
+      expect(lastMsg.content).toBe("这是部分");
+      expect(lastMsg.status).toBe("streaming");
+      expect(useChatStore.getState().isRunning).toBe(true);
 
-    // 等待消息处理
-    await new Promise((resolve) => setTimeout(resolve, 10));
+      // 用户点击中断
+      useChatStore.getState().sendAbort();
 
-    // 验证发送了 config 消息
-    const configMsg = ws.sentMessages
-      .map((raw) => JSON.parse(raw))
-      .find((msg) => msg.type === "config");
+      // 验证中断后的状态
+      const msgsAfterAbort = useChatStore.getState().messages;
+      const abortedMsg = msgsAfterAbort[msgsAfterAbort.length - 1];
+      expect(abortedMsg.content).toBe("这是部分");
+      expect(abortedMsg.status).toBe("aborted");
+      expect(useChatStore.getState().isRunning).toBe(false);
+    });
 
-    expect(configMsg).toBeDefined();
-    expect(configMsg.provider).toBe("openai");
-    expect(configMsg.model).toBe("gpt-4o");
-    expect(configMsg.baseUrl).toBe("https://api.openai.com/v1");
-    expect(configMsg.apiKey).toBe("sk-test-123");
+    it("中断消息通过 WebSocket 发送 abort 类型", () => {
+      useChatStore.getState().sendPrompt("测试");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+
+      useChatStore.getState().sendAbort();
+
+      const abortMsg = latestWs().sentMessages
+        .map((raw) => JSON.parse(raw))
+        .find((msg) => msg.type === "abort");
+      expect(abortMsg).toBeDefined();
+    });
+  });
+
+  describe("WebSocket 连接时发送 config", () => {
+    it("WebSocket 连接成功后自动发送 config 消息", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+
+      // 验证发送了 config 消息
+      const configMsg = latestWs().sentMessages
+        .map((raw) => JSON.parse(raw))
+        .find((msg) => msg.type === "config");
+
+      expect(configMsg).toBeDefined();
+      expect(configMsg.provider).toBe("openai");
+      expect(configMsg.model).toBe("gpt-4o");
+    });
+  });
+
+  describe("连接状态（connectionStatus）", () => {
+    it("初始状态为 disconnected", () => {
+      expect(useChatStore.getState().connectionStatus).toBe("disconnected");
+    });
+
+    it("连接成功后状态变为 connected", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      expect(useChatStore.getState().connectionStatus).toBe("connecting");
+
+      latestWs().simulateOpen();
+      expect(useChatStore.getState().connectionStatus).toBe("connected");
+    });
+
+    it("连接断开后状态变为 reconnecting", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      expect(useChatStore.getState().connectionStatus).toBe("connected");
+
+      latestWs().simulateClose();
+      expect(useChatStore.getState().connectionStatus).toBe("reconnecting");
+    });
+
+    it("主动 disconnect 后状态为 disconnected（不触发重连）", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+
+      useChatStore.getState().disconnect();
+      expect(useChatStore.getState().connectionStatus).toBe("disconnected");
+
+      // 推进时间，不应创建新连接
+      vi.advanceTimersByTime(60000);
+      expect(mockWsInstances.length).toBe(1);
+    });
+  });
+
+  describe("自动重连", () => {
+    it("断开后自动尝试重连（指数退避）", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+
+      latestWs().simulateClose();
+      expect(useChatStore.getState().connectionStatus).toBe("reconnecting");
+
+      // 第一次重连在 1s 后
+      vi.advanceTimersByTime(999);
+      expect(mockWsInstances.length).toBe(1);
+
+      vi.advanceTimersByTime(1);
+      expect(mockWsInstances.length).toBe(2);
+    });
+
+    it("重连成功后状态恢复为 connected", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateClose();
+
+      vi.advanceTimersByTime(1000);
+
+      latestWs().simulateOpen();
+      expect(useChatStore.getState().connectionStatus).toBe("connected");
+    });
+
+    it("重连失败时继续指数退避", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateClose();
+
+      // 第一次重连（1s 后）
+      vi.advanceTimersByTime(1000);
+      expect(mockWsInstances.length).toBe(2);
+      latestWs().simulateClose();
+
+      // 第二次重连（2s 后）
+      vi.advanceTimersByTime(1999);
+      expect(mockWsInstances.length).toBe(2);
+      vi.advanceTimersByTime(1);
+      expect(mockWsInstances.length).toBe(3);
+      latestWs().simulateClose();
+
+      // 第三次重连（4s 后）
+      vi.advanceTimersByTime(3999);
+      expect(mockWsInstances.length).toBe(3);
+      vi.advanceTimersByTime(1);
+      expect(mockWsInstances.length).toBe(4);
+    });
+  });
+
+  describe("重连后恢复", () => {
+    it("重连成功后重新发送 config", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateClose();
+
+      vi.advanceTimersByTime(1000);
+      latestWs().simulateOpen();
+
+      const configMsg = latestWs().sentMessages
+        .map((raw) => JSON.parse(raw))
+        .find((msg) => msg.type === "config");
+
+      expect(configMsg).toBeDefined();
+      expect(configMsg.provider).toBe("openai");
+    });
+
+    it("重连成功后恢复当前会话的 sessionId", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "session-abc" });
+
+      expect(useChatStore.getState().activeSessionId).toBe("session-abc");
+
+      latestWs().simulateClose();
+
+      vi.advanceTimersByTime(1000);
+      const ws2 = latestWs();
+      ws2.simulateOpen();
+
+      expect(ws2.url).toContain("sessionId=session-abc");
+    });
+  });
+
+  describe("消息缓冲", () => {
+    it("断连期间发送的消息被缓冲", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "s1" });
+
+      latestWs().simulateClose();
+      expect(useChatStore.getState().connectionStatus).toBe("reconnecting");
+
+      useChatStore.getState().sendPrompt("第一条离线消息");
+      useChatStore.getState().sendPrompt("第二条离线消息");
+
+      expect(useChatStore.getState().pendingMessages).toEqual([
+        "第一条离线消息",
+        "第二条离线消息",
+      ]);
+    });
+
+    it("重连成功后缓冲消息被依次发送", () => {
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "s1" });
+
+      latestWs().simulateClose();
+
+      useChatStore.getState().sendPrompt("消息A");
+      useChatStore.getState().sendPrompt("消息B");
+
+      vi.advanceTimersByTime(1000);
+      const ws2 = latestWs();
+      ws2.simulateOpen();
+
+      const prompts = ws2.sentMessages
+        .map((raw) => JSON.parse(raw))
+        .filter((msg) => msg.type === "prompt");
+
+      expect(prompts).toEqual([
+        { type: "prompt", text: "消息A" },
+        { type: "prompt", text: "消息B" },
+      ]);
+
+      expect(useChatStore.getState().pendingMessages).toEqual([]);
+    });
   });
 });

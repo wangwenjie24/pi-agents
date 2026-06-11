@@ -4,6 +4,7 @@ import { useConfigStore } from "./config-store.js";
 import { ChatRuntimeProvider } from "./ChatRuntimeProvider.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
+import { ConnectionStatusBar } from "./components/ConnectionStatusBar.js";
 
 function ChatInner() {
   const connected = useChatStore((s) => s.connected);
@@ -44,9 +45,7 @@ function ChatInner() {
               <path d="M13.3 10a1.2 1.2 0 00.2 1.3l.1.1a1.45 1.45 0 11-2.05 2.05l-.1-.1a1.2 1.2 0 00-1.3-.2 1.2 1.2 0 00-.73 1.1v.3a1.45 1.45 0 11-2.9 0v-.15a1.2 1.2 0 00-.79-1.1 1.2 1.2 0 00-1.3.2l-.1.1a1.45 1.45 0 11-2.05-2.05l.1-.1a1.2 1.2 0 00.2-1.3 1.2 1.2 0 00-1.1-.73h-.3a1.45 1.45 0 110-2.9h.15a1.2 1.2 0 001.1-.79 1.2 1.2 0 00-.2-1.3l-.1-.1A1.45 1.45 0 114.55 2.6l.1.1a1.2 1.2 0 001.3.2h.06a1.2 1.2 0 00.73-1.1v-.3a1.45 1.45 0 012.9 0v.15a1.2 1.2 0 00.73 1.1 1.2 1.2 0 001.3-.2l.1-.1a1.45 1.45 0 112.05 2.05l-.1.1a1.2 1.2 0 00-.2 1.3v.06a1.2 1.2 0 001.1.73h.3a1.45 1.45 0 010 2.9h-.15a1.2 1.2 0 00-1.1.73z" />
             </svg>
           </button>
-          <span className={`text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
-            {connected ? "● 已连接" : "○ 未连接"}
-          </span>
+          <ConnectionStatusBar />
         </div>
       </div>
 
