@@ -1,0 +1,6 @@
+{"type":"session","version":3,"id":"019eb516-b94d-7a61-b0b6-a9674ef81d7e","timestamp":"2026-06-11T05:10:25.869Z","cwd":"/Users/wangwenjie/Documents/workspace/pi-agents/packages/server"}
+{"type":"model_change","id":"1acd1435","parentId":null,"timestamp":"2026-06-11T05:10:26.041Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"115c61bc","parentId":"1acd1435","timestamp":"2026-06-11T05:10:26.041Z","thinkingLevel":"high"}
+{"type":"model_change","id":"8c856ffd","parentId":"115c61bc","timestamp":"2026-06-11T05:10:28.354Z","provider":"zai-coding-cn","modelId":"glm-5.1"}
+{"type":"thinking_level_change","id":"ee9bf23d","parentId":"8c856ffd","timestamp":"2026-06-11T05:10:28.354Z","thinkingLevel":"high"}
+{"type":"message","id":"3092cabc","parentId":"ee9bf23d","timestamp":"2026-06-11T05:10:30.599Z","message":{"role":"user","content":[{"type":"text","text":"123"}],"timestamp":1781154630598}}

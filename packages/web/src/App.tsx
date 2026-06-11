@@ -1,25 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useChatStore } from "./chat-store.js";
 import { ChatRuntimeProvider } from "./ChatRuntimeProvider.js";
-import { ThreadPrimitive, ComposerPrimitive } from "@assistant-ui/react";
-
-const WS_URL = "ws://localhost:8080";
+import { Sidebar } from "./components/Sidebar.js";
 
 function ChatInner() {
-  const connect = useChatStore((s) => s.connect);
   const connected = useChatStore((s) => s.connected);
   const isRunning = useChatStore((s) => s.isRunning);
   const messages = useChatStore((s) => s.messages);
-
-  useEffect(() => {
-    connect(WS_URL);
-  }, []);
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-        <h1 className="text-lg font-semibold">Pi Chat</h1>
+        <h1 className="text-lg font-semibold">
+          Pi Chat
+          {activeSessionId && (
+            <span className="ml-2 text-xs font-normal text-zinc-500">
+              {activeSessionId.slice(0, 8)}…
+            </span>
+          )}
+        </h1>
         <span className={`text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
           {connected ? "● 已连接" : "○ 未连接"}
         </span>
@@ -88,7 +89,12 @@ function ChatInner() {
 export function App() {
   return (
     <ChatRuntimeProvider>
-      <ChatInner />
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 min-w-0">
+          <ChatInner />
+        </main>
+      </div>
     </ChatRuntimeProvider>
   );
 }
