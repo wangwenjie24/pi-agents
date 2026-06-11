@@ -17,3 +17,6 @@ skills-lock.json
 
 # Test artifacts
 *.png
+
+# Session JSONL files
+.sessions/
