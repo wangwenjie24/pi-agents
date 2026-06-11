@@ -94,6 +94,8 @@ const baseChatState: Record<string, unknown> = {
   deleteSession: vi.fn().mockResolvedValue(undefined),
   renameSession: vi.fn().mockResolvedValue(undefined),
   switchSession: vi.fn(),
+  editMessage: vi.fn(),
+  regenerateMessage: vi.fn(),
   messagesMap: {},
   pendingMessages: [],
   ws: null,
@@ -125,6 +127,17 @@ vi.mock("./ChatRuntimeProvider.js", () => ({
   ChatRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
+}));
+
+vi.mock("./theme-store.js", () => ({
+  useThemeStore: (selector: any) => {
+    const state = { theme: "light", toggle: vi.fn(), initFromStorage: vi.fn() };
+    return typeof selector === "function" ? selector(state) : state;
+  },
+}));
+
+vi.mock("sonner", () => ({
+  Toaster: () => null,
 }));
 
 // Default: desktop mode

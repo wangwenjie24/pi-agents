@@ -124,6 +124,8 @@ const baseChatState = {
   deleteSession: mockDeleteSession,
   renameSession: mockRenameSession,
   switchSession: mockSwitchSession,
+  editMessage: vi.fn(),
+  regenerateMessage: vi.fn(),
   messagesMap: {},
   pendingMessages: [],
   ws: null,
@@ -132,13 +134,12 @@ const baseChatState = {
 
 vi.mock("../chat-store.js", () => {
   const getState = () => ({ ...baseChatState, ...chatStateOverride });
-  const setState = (_patch: Record<string, unknown>) => { /* noop for tests */ };
   const useChatStore = Object.assign(
     (selector: any) => {
       const state = getState();
       return typeof selector === "function" ? selector(state) : state;
     },
-    { getState, setState, subscribe: () => () => {} }
+    { getState, setState: () => {}, subscribe: () => () => {} }
   );
   return { useChatStore };
 });
@@ -154,6 +155,13 @@ vi.mock("../ChatRuntimeProvider.js", () => ({
   ChatRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
+}));
+
+vi.mock("../theme-store.js", () => ({
+  useThemeStore: (selector: any) => {
+    const state = { theme: "light", toggle: vi.fn(), initFromStorage: vi.fn() };
+    return typeof selector === "function" ? selector(state) : state;
+  },
 }));
 
 vi.mock("../hooks/use-is-mobile.js", () => ({
@@ -337,6 +345,19 @@ describe("Sidebar 组件 - Issue #17", () => {
 
       const newChatBtn = screen.getByRole("button", { name: /新建对话/i });
       expect(newChatBtn).toBeInTheDocument();
+    });
+  });
+
+  // ── 主题切换 ──
+
+  describe("主题切换", () => {
+    it("底部显示主题切换按钮", async () => {
+      render(<Sidebar />);
+      await waitFor(() => {
+        expect(screen.getByText("会话一")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/暗色模式|亮色模式/)).toBeInTheDocument();
     });
   });
 });

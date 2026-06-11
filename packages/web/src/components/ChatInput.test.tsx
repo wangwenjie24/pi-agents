@@ -153,4 +153,154 @@ describe("ChatInput 组件", () => {
     // 发送后输入框应清空
     expect(textarea).toHaveValue("");
   });
+
+  /**
+   * 切片 5：文件拖拽上传 + 预览
+   *
+   * 行为：
+   * - 拖拽文件到输入区域时显示文件预览
+   * - 预览包含文件名和移除按钮
+   * - 点击移除按钮移除文件
+   * - 拖拽时输入区域显示高亮样式
+   */
+  describe("文件拖拽上传", () => {
+    // 创建模拟文件
+    function createFile(name: string, type: string, size = 1024) {
+      const file = new File(["x".repeat(size)], name, { type });
+      return file;
+    }
+
+    it("拖拽文件到输入区域后显示文件预览", () => {
+      render(
+        <ChatInput
+          connected={true}
+          isRunning={false}
+          sendPrompt={mockSendPrompt}
+          sendAbort={mockSendAbort}
+        />
+      );
+
+      const dropZone = screen.getByTestId("chat-input-drop-zone");
+      const file = createFile("test.txt", "text/plain");
+
+      // 触发 drop 事件
+      const dropEvent = new Event("drop", { bubbles: true });
+      Object.defineProperty(dropEvent, "dataTransfer", {
+        value: { files: [file], types: ["Files"] },
+      });
+      fireEvent(dropZone, dropEvent);
+
+      // 应该显示文件预览
+      expect(screen.getByText("test.txt")).toBeInTheDocument();
+    });
+
+    it("文件预览包含移除按钮，点击后移除文件", () => {
+      render(
+        <ChatInput
+          connected={true}
+          isRunning={false}
+          sendPrompt={mockSendPrompt}
+          sendAbort={mockSendAbort}
+        />
+      );
+
+      const dropZone = screen.getByTestId("chat-input-drop-zone");
+      const file = createFile("photo.jpg", "image/jpeg");
+
+      const dropEvent = new Event("drop", { bubbles: true });
+      Object.defineProperty(dropEvent, "dataTransfer", {
+        value: { files: [file], types: ["Files"] },
+      });
+      fireEvent(dropZone, dropEvent);
+
+      expect(screen.getByText("photo.jpg")).toBeInTheDocument();
+
+      // 点击移除按钮
+      const removeBtn = screen.getByTestId("remove-file-0");
+      fireEvent.click(removeBtn);
+
+      // 文件预览应消失
+      expect(screen.queryByText("photo.jpg")).not.toBeInTheDocument();
+    });
+
+    it("拖拽进入时显示高亮状态", () => {
+      render(
+        <ChatInput
+          connected={true}
+          isRunning={false}
+          sendPrompt={mockSendPrompt}
+          sendAbort={mockSendAbort}
+        />
+      );
+
+      const dropZone = screen.getByTestId("chat-input-drop-zone");
+
+      fireEvent.dragOver(dropZone, {
+        dataTransfer: { types: ["Files"] },
+      });
+
+      expect(dropZone.className).toMatch(/ring/);
+    });
+  });
+
+  /**
+   * 切片 6：粘贴图片
+   *
+   * 行为：
+   * - 在 textarea 中粘贴图片时，图片出现在文件预览区
+   */
+  describe("粘贴图片", () => {
+    it("粘贴图片时图片出现在文件预览区", () => {
+      render(
+        <ChatInput
+          connected={true}
+          isRunning={false}
+          sendPrompt={mockSendPrompt}
+          sendAbort={mockSendAbort}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText("Type your message...");
+
+      // 模拟粘贴图片
+      const imageFile = new File(["image-data"], "screenshot.png", { type: "image/png" });
+      const pasteEvent = new Event("paste", { bubbles: true });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          files: [imageFile],
+          types: ["Files"],
+        },
+      });
+      fireEvent(textarea, pasteEvent);
+
+      expect(screen.getByText("screenshot.png")).toBeInTheDocument();
+    });
+
+    it("粘贴文本时不触发文件添加", async () => {
+      render(
+        <ChatInput
+          connected={true}
+          isRunning={false}
+          sendPrompt={mockSendPrompt}
+          sendAbort={mockSendAbort}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText("Type your message...");
+
+      // 模拟粘贴纯文本
+      const pasteEvent = new Event("paste", { bubbles: true });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          files: [],
+          types: ["text/plain"],
+          getData: () => "hello",
+        },
+      });
+      fireEvent(textarea, pasteEvent);
+
+      // 不应有文件预览
+      expect(screen.queryByTestId(/remove-file/)).not.toBeInTheDocument();
+    });
+  });
 });

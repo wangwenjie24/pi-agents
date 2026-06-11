@@ -414,4 +414,121 @@ describe("chat-store", () => {
       expect(useChatStore.getState().pendingMessages).toEqual([]);
     });
   });
+
+  describe("编辑消息并重发", () => {
+    beforeEach(() => {
+      resetAll();
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "edit-test-session" });
+    });
+
+    it("editMessage 更新用户消息内容并标记为已编辑", () => {
+      useChatStore.getState().sendPrompt("原始消息");
+
+      // 模拟 AI 回复完成
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "chat_delta", delta: "回复" });
+      latestWs().simulateMessage({ type: "chat_done" });
+
+      // 找到用户消息的 id
+      const msgs = useChatStore.getState().messages;
+      const userMsg = msgs.find((m) => m.role === "user")!;
+
+      useChatStore.getState().editMessage(userMsg.id, "编辑后的消息");
+
+      const updated = useChatStore.getState().messages;
+      const editedUserMsg = updated.find((m) => m.id === userMsg.id)!;
+      expect(editedUserMsg.content).toBe("编辑后的消息");
+      expect((editedUserMsg as any).edited).toBe(true);
+    });
+
+    it("editMessage 移除编辑消息之后的 AI 回复", () => {
+      useChatStore.getState().sendPrompt("原始消息");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "chat_delta", delta: "AI 回复" });
+      latestWs().simulateMessage({ type: "chat_done" });
+
+      const msgs = useChatStore.getState().messages;
+      expect(msgs.length).toBe(2); // user + assistant
+
+      const userMsg = msgs.find((m) => m.role === "user")!;
+      useChatStore.getState().editMessage(userMsg.id, "编辑后");
+
+      const updated = useChatStore.getState().messages;
+      expect(updated.length).toBe(2); // 用户消息 + 新的空 assistant 消息
+      expect(updated[0].content).toBe("编辑后");
+      expect(updated[1].role).toBe("assistant");
+      expect(updated[1].status).toBe("streaming");
+    });
+
+    it("editMessage 通过 WebSocket 发送新的 prompt", () => {
+      useChatStore.getState().sendPrompt("原始消息");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "chat_done" });
+
+      const msgs = useChatStore.getState().messages;
+      const userMsg = msgs.find((m) => m.role === "user")!;
+
+      latestWs().sentMessages.length = 0; // 清空
+      useChatStore.getState().editMessage(userMsg.id, "编辑后");
+
+      const promptMsg = latestWs().sentMessages
+        .map((raw) => JSON.parse(raw))
+        .find((msg) => msg.type === "prompt");
+      expect(promptMsg).toBeDefined();
+      expect(promptMsg.text).toBe("编辑后");
+    });
+  });
+
+  describe("重新生成 AI 回复", () => {
+    beforeEach(() => {
+      resetAll();
+      useChatStore.getState().connect("ws://localhost:8080");
+      latestWs().simulateOpen();
+      latestWs().simulateMessage({ type: "connected", sessionId: "regen-session" });
+    });
+
+    it("regenerateMessage 替换 AI 回复为新的空 streaming 消息", () => {
+      useChatStore.getState().sendPrompt("你好");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "chat_delta", delta: "你好！" });
+      latestWs().simulateMessage({ type: "chat_done" });
+
+      const msgs = useChatStore.getState().messages;
+      const aiMsg = msgs.find((m) => m.role === "assistant")!;
+
+      useChatStore.getState().regenerateMessage(aiMsg.id);
+
+      const updated = useChatStore.getState().messages;
+      // 应该只有 user + 新 assistant 两条
+      expect(updated.length).toBe(2);
+      expect(updated[1].role).toBe("assistant");
+      expect(updated[1].content).toBe("");
+      expect(updated[1].status).toBe("streaming");
+      expect(useChatStore.getState().isRunning).toBe(true);
+    });
+
+    it("regenerateMessage 通过 WebSocket 发送对应的用户 prompt", () => {
+      useChatStore.getState().sendPrompt("重新回答我");
+
+      latestWs().simulateMessage({ type: "agent_start" });
+      latestWs().simulateMessage({ type: "chat_done" });
+
+      const msgs = useChatStore.getState().messages;
+      const aiMsg = msgs.find((m) => m.role === "assistant")!;
+
+      latestWs().sentMessages.length = 0;
+      useChatStore.getState().regenerateMessage(aiMsg.id);
+
+      const promptMsg = latestWs().sentMessages
+        .map((raw) => JSON.parse(raw))
+        .find((msg) => msg.type === "prompt");
+      expect(promptMsg).toBeDefined();
+      expect(promptMsg.text).toBe("重新回答我");
+    });
+  });
 });

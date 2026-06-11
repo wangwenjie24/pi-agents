@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { useChatStore, type Session } from "../chat-store.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "../hooks/use-is-mobile.js";
+import { useThemeStore } from "../theme-store.js";
+import { Sun, Moon } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
 const SIDEBAR_WIDTH = 300;
@@ -16,6 +18,8 @@ export function Sidebar() {
   const renameSession = useChatStore((s) => s.renameSession);
   const switchSession = useChatStore((s) => s.switchSession);
   const connect = useChatStore((s) => s.connect);
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggle);
 
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -126,6 +130,22 @@ export function Sidebar() {
             />
           ))
         )}
+      </div>
+
+      {/* 底部：主题切换 */}
+      <div className="px-3 py-3 border-t border-sidebar-border">
+        <button
+          onClick={toggleTheme}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title={theme === "light" ? "切换暗色模式" : "切换亮色模式"}
+        >
+          {theme === "light" ? (
+            <Moon size={16} />
+          ) : (
+            <Sun size={16} />
+          )}
+          <span>{theme === "light" ? "暗色模式" : "亮色模式"}</span>
+        </button>
       </div>
     </>
   );

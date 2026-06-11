@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ServerMessage, ClientMessage } from "@pi-chat/shared";
 import { useConfigStore } from "./config-store.js";
+import { toast } from "sonner";
 import {
   getNextRetryDelay,
   resetRetryCount,
@@ -22,6 +23,7 @@ export interface ChatMessage {
   content: string;
   status: "streaming" | "done" | "aborted";
   toolCalls?: ToolCall[];
+  edited?: boolean;
 }
 
 export interface Session {
@@ -70,6 +72,10 @@ export interface ChatState {
   deleteSession: (id: string) => Promise<void>;
   renameSession: (id: string, name: string) => Promise<void>;
   switchSession: (id: string) => void;
+
+  // 消息操作
+  editMessage: (messageId: string, newContent: string) => void;
+  regenerateMessage: (messageId: string) => void;
 
   // 内部
   _onServerMessage: (msg: ServerMessage) => void;
@@ -360,6 +366,86 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().connect(WS_URL, id);
   },
 
+  // ── 消息操作 ──
+
+  editMessage(messageId: string, newContent: string) {
+    const { messages, ws } = get();
+    const msgIndex = messages.findIndex((m) => m.id === messageId);
+    if (msgIndex === -1) return;
+
+    // 更新用户消息，标记为已编辑，截断之后的所有消息
+    const updatedUserMsg: ChatMessage = {
+      ...messages[msgIndex],
+      content: newContent,
+      edited: true,
+    };
+
+    // 新的空 assistant 消息
+    const newAssistantMsg: ChatMessage = {
+      id: `msg-${nextId++}`,
+      role: "assistant",
+      content: "",
+      status: "streaming",
+    };
+
+    // 保留编辑消息及之前的消息，替换编辑消息，并追加新的 assistant 消息
+    const updated = [
+      ...messages.slice(0, msgIndex),
+      updatedUserMsg,
+      newAssistantMsg,
+    ];
+
+    set((s) => {
+      const flushed = flushMessages({ ...s, messages: updated });
+      return {
+        messages: updated,
+        ...flushed,
+        isRunning: true,
+      };
+    });
+
+    // 通过 WebSocket 发送编辑后的 prompt
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const clientMsg: ClientMessage = { type: "prompt", text: newContent };
+      ws.send(JSON.stringify(clientMsg));
+    }
+  },
+
+  regenerateMessage(messageId: string) {
+    const { messages, ws } = get();
+    const msgIndex = messages.findIndex((m) => m.id === messageId);
+    if (msgIndex === -1) return;
+
+    // 替换 AI 消息为新的空 assistant 消息
+    const newAssistantMsg: ChatMessage = {
+      id: `msg-${nextId++}`,
+      role: "assistant",
+      content: "",
+      status: "streaming",
+    };
+
+    const updated = [
+      ...messages.slice(0, msgIndex),
+      newAssistantMsg,
+    ];
+
+    set((s) => {
+      const flushed = flushMessages({ ...s, messages: updated });
+      return {
+        messages: updated,
+        ...flushed,
+        isRunning: true,
+      };
+    });
+
+    // 找到编辑消息对应的用户消息内容（前一条）
+    const prevUserMsg = messages.slice(0, msgIndex).reverse().find((m) => m.role === "user");
+    if (prevUserMsg && ws && ws.readyState === WebSocket.OPEN) {
+      const clientMsg: ClientMessage = { type: "prompt", text: prevUserMsg.content };
+      ws.send(JSON.stringify(clientMsg));
+    }
+  },
+
   // ── 服务器消息处理 ──
 
   _onServerMessage(msg: ServerMessage) {
@@ -427,11 +513,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             isRunning: false,
           };
         });
+        toast.error(msg.error);
         break;
       }
 
       case "session_error": {
         console.error("Session error:", msg.error);
+        toast.error(msg.error);
         break;
       }
 

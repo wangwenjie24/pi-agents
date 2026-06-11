@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from "react";
-import { Send, StopCircle } from "lucide-react";
+import React, { useState, useRef, useCallback, DragEvent } from "react";
+import { Send, StopCircle, X, Paperclip } from "lucide-react";
 
 interface ChatInputProps {
   connected: boolean;
@@ -16,8 +16,42 @@ export function ChatInput({
 }: ChatInputProps) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const canSend = input.trim().length > 0 && connected;
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      setPendingFiles((prev) => [...prev, ...files]);
+    }
+  }, []);
+
+  const removeFile = useCallback((index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData.files);
+    if (files.length > 0) {
+      e.preventDefault();
+      setPendingFiles((prev) => [...prev, ...files]);
+    }
+    // 纯文本粘贴由浏览器默认行为处理
+  }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -25,6 +59,7 @@ export function ChatInput({
       if (!canSend) return;
       sendPrompt(input.trim());
       setInput("");
+      setPendingFiles([]);
       textareaRef.current?.focus();
     },
     [canSend, input, sendPrompt]
@@ -37,6 +72,7 @@ export function ChatInput({
         if (canSend) {
           sendPrompt(input.trim());
           setInput("");
+          setPendingFiles([]);
         }
       }
     },
@@ -46,15 +82,43 @@ export function ChatInput({
   return (
     <div className="border-t border-border px-4 py-3">
       <div className="max-w-3xl mx-auto">
+        {/* 文件预览区 */}
+        {pendingFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {pendingFiles.map((file, idx) => (
+              <div
+                key={`${file.name}-${idx}`}
+                className="flex items-center gap-2 bg-muted rounded-lg px-3 py-1.5 text-xs"
+              >
+                <Paperclip size={12} className="flex-shrink-0 text-muted-foreground" />
+                <span className="truncate max-w-[150px]">{file.name}</span>
+                <button
+                  data-testid={`remove-file-${idx}`}
+                  onClick={() => removeFile(idx)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <form
           onSubmit={handleSubmit}
-          className="flex items-end gap-2 bg-muted rounded-2xl px-4 py-3 shadow-xs"
+          data-testid="chat-input-drop-zone"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`flex items-end gap-2 bg-muted rounded-2xl px-4 py-3 shadow-xs transition-all ${
+            isDragOver ? "ring-2 ring-primary" : ""
+          }`}
         >
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Type your message..."
             disabled={!connected}
             rows={1}
