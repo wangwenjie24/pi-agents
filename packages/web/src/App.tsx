@@ -1,11 +1,11 @@
 import React from "react";
 import { useChatStore } from "./chat-store.js";
-import { useConfigStore } from "./config-store.js";
 import { ChatRuntimeProvider } from "./ChatRuntimeProvider.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { WelcomePage } from "./components/WelcomePage.js";
 import { MessageList } from "./components/MessageList.js";
 import { ChatInput } from "./components/ChatInput.js";
+import { TopNavBar } from "./components/TopNavBar.js";
 
 function ChatInner() {
   const connected = useChatStore((s) => s.connected);
@@ -17,24 +17,27 @@ function ChatInner() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-background text-foreground">
-      {hasMessages ? (
-        <>
-          {/* 消息列表 */}
-          <MessageList messages={messages} isRunning={isRunning} />
+    <div className="flex flex-col h-full">
+      {hasMessages && <TopNavBar />}
+      <div className="flex flex-col flex-1 min-h-0 bg-background text-foreground">
+        {hasMessages ? (
+          <>
+            {/* 消息列表 */}
+            <MessageList messages={messages} isRunning={isRunning} />
 
-          {/* 输入区域 */}
-          <ChatInput
-            connected={connected}
-            isRunning={isRunning}
-            sendPrompt={sendPrompt}
-            sendAbort={sendAbort}
-          />
-        </>
-      ) : (
-        /* 欢迎页 */
-        <WelcomePage />
-      )}
+            {/* 输入区域 */}
+            <ChatInput
+              connected={connected}
+              isRunning={isRunning}
+              sendPrompt={sendPrompt}
+              sendAbort={sendAbort}
+            />
+          </>
+        ) : (
+          /* 欢迎页 */
+          <WelcomePage />
+        )}
+      </div>
     </div>
   );
 }
@@ -42,11 +45,17 @@ function ChatInner() {
 export function App() {
   return (
     <ChatRuntimeProvider>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div
+        className="grid h-screen overflow-hidden bg-background"
+        style={{ gridTemplateColumns: "auto 1fr 0fr" }}
+        data-testid="app-grid"
+      >
         <Sidebar />
-        <main className="flex-1 min-w-0">
+        <main className="min-w-0 overflow-hidden">
           <ChatInner />
         </main>
+        {/* 右侧面板占位 - 0fr 默认折叠，后续切片可扩展 */}
+        <div className="overflow-hidden" />
       </div>
     </ChatRuntimeProvider>
   );
